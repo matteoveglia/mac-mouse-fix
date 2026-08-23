@@ -1385,6 +1385,89 @@ your mouse. (**Logitech M720 Triathlon**)&gt;</string>
                                                     <constraint firstAttribute="bottom" secondItem="ljz-rp-t9J" secondAttribute="bottom" id="YAd-iC-gHG"/>
                                                 </constraints>
                                             </customView>
+                                            <stackView distribution="fill" orientation="vertical" alignment="leading" spacing="6" horizontalStackHuggingPriority="1000" verticalStackHuggingPriority="750" horizontalHuggingPriority="1000" detachesHiddenViews="YES" translatesAutoresizingMaskInto="NO" id="ScW-Trackpad-Scope-Stack-001" userLabel="Trackpad Simulation Scope">
+                                                <rect key="frame" x="18" y="-60" width="322" height="54"/>
+                                                <subviews>
+                                                    <stackView distribution="fill" orientation="horizontal" alignment="centerY" spacing="10" horizontalStackHuggingPriority="1000" verticalStackHuggingPriority="750" horizontalHuggingPriority="1000" translatesAutoresizingMaskInto="NO" id="ScW-Trackpad-Scope-Row-001" userLabel="Trackpad Simulation Scope Row">
+                                                        <rect key="frame" x="0.0" y="30" width="204" height="24"/>
+                                                        <subviews>
+                                                            <textField focusRingType="none" horizontalHuggingPriority="1000" verticalHuggingPriority="1000" translatesAutoresizingMaskInto="NO" id="ScW-Trackpad-Scope-Label-001">
+                                                                <rect key="frame" x="0.0" y="4" width="70" height="16"/>
+                                                                <constraints>
+                                                                    <constraint firstAttribute="width" constant="70" id="ScW-Trackpad-Scope-Label-Width"/>
+                                                                </constraints>
+                                                                <textFieldCell key="cell" lineBreakMode="clipping" title="Apply to" id="ScW-Trackpad-Scope-Label-Cell-001">
+                                                                    <font key="font" usesAppearanceFont="YES"/>
+                                                                    <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog"/>
+                                                                    <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
+                                                                </textFieldCell>
+                                                            </textField>
+                                                            <popUpButton horizontalHuggingPriority="1000" verticalHuggingPriority="750" horizontalCompressionResistancePriority="1000" verticalCompressionResistancePriority="1000" translatesAutoresizingMaskInto="NO" id="ScW-Trackpad-Scope-Picker-001">
+                                                                <rect key="frame" x="80" y="0.0" width="124" height="24"/>
+                                                                <constraints>
+                                                                    <constraint firstAttribute="width" constant="124" id="ScW-Trackpad-Scope-Picker-Width"/>
+                                                                </constraints>
+                                                                <popUpButtonCell key="cell" type="push" title="All Apps" bezelStyle="rounded" alignment="left" lineBreakMode="truncatingTail" state="on" borderStyle="borderAndBezel" imageScaling="proportionallyDown" inset="2" selectedItem="ScW-Trackpad-Scope-All" id="ScW-Trackpad-Scope-Cell-001">
+                                                                    <behavior key="behavior" lightByBackground="YES" lightByGray="YES"/>
+                                                                    <font key="font" metaFont="message"/>
+                                                                    <menu key="menu" id="ScW-Trackpad-Scope-Menu-001">
+                                                                        <items>
+                                                                            <menuItem title="All Apps" state="on" identifier="all" id="ScW-Trackpad-Scope-All"/>
+                                                                            <menuItem title="Included Apps" identifier="include" id="ScW-Trackpad-Scope-Include"/>
+                                                                            <menuItem title="Excluded Apps" identifier="exclude" id="ScW-Trackpad-Scope-Exclude"/>
+                                                                        </items>
+                                                                    </menu>
+                                                                </popUpButtonCell>
+                                                                <accessibility identifier="axScrollingTrackpadScopeButton"/>
+                                                            </popUpButton>
+                                                        </subviews>
+                                                    </stackView>
+                                                    <stackView distribution="fill" orientation="horizontal" alignment="centerY" spacing="6" horizontalStackHuggingPriority="1000" verticalStackHuggingPriority="750" horizontalHuggingPriority="1000" translatesAutoresizingMaskInto="NO" id="ScW-Trackpad-Apps-Row-001" userLabel="Trackpad Simulation Apps Row">
+                                                        <rect key="frame" x="0.0" y="0.0" width="322" height="24"/>
+                                                        <subviews>
+                                                            <button horizontalHuggingPriority="1000" verticalHuggingPriority="1000" translatesAutoresizingMaskInto="NO" id="ScW-Trackpad-Apps-Button-001">
+                                                                <rect key="frame" x="0.0" y="0.0" width="105" height="24"/>
+                                                                <constraints>
+                                                                    <constraint firstAttribute="width" constant="105" id="ScW-Trackpad-Apps-Button-Width"/>
+                                                                </constraints>
+                                                                <buttonCell key="cell" type="push" title="Choose Apps…" bezelStyle="rounded" alignment="center" borderStyle="borderAndBezel" imageScaling="proportionallyDown" inset="2" id="ScW-Trackpad-Apps-Button-Cell-001">
+                                                                    <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
+                                                                    <font key="font" metaFont="message"/>
+                                                                </buttonCell>
+                                                                <accessibility identifier="axScrollingTrackpadAppsButton"/>
+                                                                <connections>
+                                                                    <action selector="chooseTrackpadApps:" target="qcW-e9-BqR" id="ScW-Trackpad-Choose-Apps-Action"/>
+                                                                </connections>
+                                                            </button>
+                                                            <textField focusRingType="none" horizontalHuggingPriority="250" verticalHuggingPriority="1000" horizontalCompressionResistancePriority="750" translatesAutoresizingMaskInto="NO" id="ScW-Trackpad-Apps-Summary-001">
+                                                                <rect key="frame" x="111" y="4" width="148" height="16"/>
+                                                                <constraints>
+                                                                    <constraint firstAttribute="width" constant="148" id="ScW-Trackpad-Apps-Summary-Width"/>
+                                                                </constraints>
+                                                                <textFieldCell key="cell" lineBreakMode="truncatingTail" title="All apps" id="ScW-Trackpad-Apps-Summary-Cell-001">
+                                                                    <font key="font" metaFont="smallSystem"/>
+                                                                    <color key="textColor" name="secondaryLabelColor" catalog="System" colorSpace="catalog"/>
+                                                                    <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
+                                                                </textFieldCell>
+                                                                <accessibility identifier="axScrollingTrackpadAppsSummary"/>
+                                                            </textField>
+                                                            <button horizontalHuggingPriority="1000" verticalHuggingPriority="1000" translatesAutoresizingMaskInto="NO" id="ScW-Trackpad-Clear-Apps-Button-001">
+                                                                <rect key="frame" x="265" y="0.0" width="45" height="24"/>
+                                                                <constraints>
+                                                                    <constraint firstAttribute="width" constant="45" id="ScW-Trackpad-Clear-Apps-Width"/>
+                                                                </constraints>
+                                                                <buttonCell key="cell" type="push" title="Clear" bezelStyle="rounded" alignment="center" borderStyle="borderAndBezel" imageScaling="proportionallyDown" inset="2" id="ScW-Trackpad-Clear-Apps-Cell-001">
+                                                                    <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
+                                                                    <font key="font" metaFont="message"/>
+                                                                </buttonCell>
+                                                                <connections>
+                                                                    <action selector="clearTrackpadApps:" target="qcW-e9-BqR" id="ScW-Trackpad-Clear-Apps-Action"/>
+                                                                </connections>
+                                                            </button>
+                                                        </subviews>
+                                                    </stackView>
+                                                </subviews>
+                                            </stackView>
                                         </subviews>
                                         <visibilityPriorities>
                                             <integer value="1000"/>
@@ -1554,45 +1637,6 @@ your mouse. (**Logitech M720 Triathlon**)&gt;</string>
                                                     </menu>
                                                 </popUpButtonCell>
                                                 <accessibility identifier="axScrollingHorizontalSpeedButton"/>
-                                            </popUpButton>
-                                        </subviews>
-                                    </stackView>
-                                    <textField focusRingType="none" horizontalHuggingPriority="1000" verticalHuggingPriority="1000" translatesAutoresizingMaskInto="NO" id="ScW-Scale-Title-001">
-                                        <rect key="frame" x="0.0" y="158" width="350" height="16"/>
-                                        <textFieldCell key="cell" controlSize="small" lineBreakMode="clipping" title="Scale" id="ScW-Scale-Title-Cell-001">
-                                            <font key="font" metaFont="smallSystem"/>
-                                            <color key="textColor" name="secondaryLabelColor" catalog="System" colorSpace="catalog"/>
-                                            <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
-                                        </textFieldCell>
-                                    </textField>
-                                    <stackView distribution="fill" orientation="horizontal" alignment="centerY" spacing="10" horizontalStackHuggingPriority="1000" verticalStackHuggingPriority="750" horizontalHuggingPriority="1000" detachesHiddenViews="YES" translatesAutoresizingMaskInto="NO" id="ScW-Horizontal-Scale-Stack-001" userLabel="Horizontal Scale Row">
-                                        <rect key="frame" x="0.0" y="135" width="192" height="24"/>
-                                        <subviews>
-                                            <textField focusRingType="none" horizontalHuggingPriority="1000" verticalHuggingPriority="1000" horizontalCompressionResistancePriority="1000" verticalCompressionResistancePriority="1000" translatesAutoresizingMaskInto="NO" id="ScW-Horizontal-Scale-Label-001">
-                                                <rect key="frame" x="-2" y="4" width="70" height="16"/>
-                                                <constraints>
-                                                    <constraint firstAttribute="width" constant="70" id="ScW-Horizontal-Scale-Label-Width"/>
-                                                </constraints>
-                                                <textFieldCell key="cell" lineBreakMode="clipping" alignment="left" title="Horizontal" id="ScW-Horizontal-Scale-Label-Cell-001">
-                                                    <font key="font" usesAppearanceFont="YES"/>
-                                                    <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog"/>
-                                                    <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
-                                                </textFieldCell>
-                                            </textField>
-                                            <popUpButton horizontalHuggingPriority="1000" verticalHuggingPriority="750" horizontalCompressionResistancePriority="1000" verticalCompressionResistancePriority="1000" translatesAutoresizingMaskInto="NO" id="ScW-Horizontal-Scale-Picker-001">
-                                                <rect key="frame" x="87" y="0.0" width="96" height="24"/>
-                                                <popUpButtonCell key="cell" type="push" title="Normal" bezelStyle="rounded" alignment="left" lineBreakMode="truncatingTail" state="on" borderStyle="borderAndBezel" imageScaling="proportionallyDown" inset="2" selectedItem="ScW-Horizontal-Scale-Normal" id="ScW-Horizontal-Scale-Cell-001">
-                                                    <behavior key="behavior" lightByBackground="YES" lightByGray="YES"/>
-                                                    <font key="font" metaFont="message"/>
-                                                    <menu key="menu" id="ScW-Horizontal-Scale-Menu-001">
-                                                        <items>
-                                                            <menuItem title="Normal" state="on" identifier="normal" id="ScW-Horizontal-Scale-Normal"/>
-                                                            <menuItem title="Reduced" identifier="reduced" id="ScW-Horizontal-Scale-Reduced"/>
-                                                            <menuItem title="Minimal" identifier="minimal" id="ScW-Horizontal-Scale-Minimal"/>
-                                                        </items>
-                                                    </menu>
-                                                </popUpButtonCell>
-                                                <accessibility identifier="axScrollingHorizontalScaleButton"/>
                                             </popUpButton>
                                         </subviews>
                                     </stackView>
@@ -1974,7 +2018,6 @@ your mouse. (**Logitech M720 Triathlon**)&gt;</string>
                         <outlet property="horizontalModField" destination="PpE-2r-BrM" id="sxE-uX-0zf"/>
                         <outlet property="horizontalSmoothPicker" destination="ScW-Horizontal-Smooth-001" id="ScW-Horizontal-Smooth-Outlet"/>
                         <outlet property="horizontalSpeedPicker" destination="hSp-Picker-001" id="hSp-Outlet-001"/>
-                        <outlet property="horizontalScalePicker" destination="ScW-Horizontal-Scale-Picker-001" id="ScW-Horizontal-Scale-Outlet"/>
                         <outlet property="masterStack" destination="N4F-RB-d7a" id="l0H-83-1J7"/>
                         <outlet property="preciseHint" destination="Yn5-ch-Oxi" id="qNm-Cv-Jsf"/>
                         <outlet property="preciseModField" destination="gqo-T2-Nmz" id="Rts-Lf-EyR"/>
@@ -1987,7 +2030,11 @@ your mouse. (**Logitech M720 Triathlon**)&gt;</string>
                         <outlet property="speedPicker" destination="AUN-SK-ju7" id="5Qf-b9-Y8X"/>
                         <outlet property="swiftModField" destination="Abk-fb-uRV" id="kYs-Xn-eTk"/>
                         <outlet property="trackpadHint" destination="ljz-rp-t9J" id="pUy-mv-lBP"/>
+                        <outlet property="trackpadAppsButton" destination="ScW-Trackpad-Apps-Button-001" id="ScW-Trackpad-Apps-Button-Outlet"/>
+                        <outlet property="trackpadAppsClearButton" destination="ScW-Trackpad-Clear-Apps-Button-001" id="ScW-Trackpad-Clear-Apps-Outlet"/>
+                        <outlet property="trackpadAppsSummary" destination="ScW-Trackpad-Apps-Summary-001" id="ScW-Trackpad-Apps-Summary-Outlet"/>
                         <outlet property="trackpadSection" destination="TFj-AL-hbW" id="ID7-aO-Rky"/>
+                        <outlet property="trackpadScopePicker" destination="ScW-Trackpad-Scope-Picker-001" id="ScW-Trackpad-Scope-Outlet"/>
                         <outlet property="trackpadToggle" destination="BaB-SW-lek" id="TyK-xD-IEc"/>
                         <outlet property="zoomModField" destination="HZF-jc-NcN" id="Cbj-dq-4Sv"/>
                     </connections>

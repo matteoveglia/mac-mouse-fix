@@ -19,6 +19,10 @@
 		<true/>
 		<key>trackpadSimulation</key>
 		<true/>
+		<key>trackpadSimulationScope</key>
+		<string>all</string>
+		<key>trackpadSimulationApps</key>
+		<array/>
 		<key>precise</key>
 		<false/>
 		<key>smooth</key>
@@ -33,8 +37,6 @@
 		<string>high</string>
 		<key>horizontalSpeed</key>
 		<string>medium</string>
-		<key>horizontalScale</key>
-		<string>normal</string>
 	</dict>
 	<key>License</key>
 	<dict>

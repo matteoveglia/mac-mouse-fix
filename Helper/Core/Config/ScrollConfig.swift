@@ -63,18 +63,25 @@ import Cocoa
         shared = ScrollConfig()
         cache = nil
     }
-    private static var cache: [_HT<MFScrollModificationResult, MFAxis, CGDirectDisplayID>: ScrollConfig]? = nil
+    private struct CacheKey: Hashable {
+        let modifiers: MFScrollModificationResult
+        let inputAxis: MFAxis
+        let display: CGDirectDisplayID
+        let trackpadSimulation: Bool
+    }
+    private static var cache: [CacheKey: ScrollConfig]? = nil
     
     // MARK: Overrides
     
-    @objc static func scrollConfig(modifiers: MFScrollModificationResult, inputAxis: MFAxis, display: CGDirectDisplayID) -> ScrollConfig {
+    @objc static func scrollConfig(modifiers: MFScrollModificationResult, inputAxis: MFAxis, display: CGDirectDisplayID, appBundleIdentifier: String?) -> ScrollConfig {
         
         /// Try to get result from cache
         
         if cache == nil {
             cache = .init()
         }
-        let key = _HT(a: modifiers, b: inputAxis, c: display)
+        let trackpadSimulation = shared.trackpadSimulationEnabled(forAppBundleIdentifier: appBundleIdentifier)
+        let key = CacheKey(modifiers: modifiers, inputAxis: inputAxis, display: display, trackpadSimulation: trackpadSimulation)
         
         if let fromCache = cache![key] {
             return fromCache
@@ -85,6 +92,7 @@ import Cocoa
             
             /// Copy og settings
             let new = shared.copy() as! ScrollConfig
+            new.u_trackpadSimulation = trackpadSimulation
             new.applyAxisSpecificUserSettings(for: inputAxis)
             
             /// Declare overridables
@@ -244,6 +252,29 @@ import Cocoa
         return (c(axisKey) as? String) ?? (c(key) as! String)
     }
 
+    /// Resolve Trackpad Simulation for the application under the pointer.
+    /// Missing scope data uses the original all-apps behavior so older
+    /// configurations continue to work before the app has migrated them.
+    private func trackpadSimulationEnabled(forAppBundleIdentifier appBundleIdentifier: String?) -> Bool {
+        guard (c("trackpadSimulation") as? Bool) == true else { return false }
+
+        let scope = (c("trackpadSimulationScope") as? String) ?? "all"
+        let appBundleIDs = (c("trackpadSimulationApps") as? NSArray)?.compactMap({ $0 as? String }) ?? []
+
+        switch scope {
+        case "include":
+            guard let appBundleIdentifier else { return false }
+            return appBundleIDs.contains(appBundleIdentifier)
+        case "exclude":
+            guard let appBundleIdentifier else { return true }
+            return !appBundleIDs.contains(appBundleIdentifier)
+        case "all":
+            return true
+        default:
+            return true
+        }
+    }
+
     /// `shared.copy()` eagerly copies many lazy derived properties. Apply the
     /// selected axis settings and refresh the derived values that depend on
     /// the user-facing smoothness choice before the acceleration curve is
@@ -312,15 +343,6 @@ import Cocoa
         }
     }
 
-    private static func horizontalScaleFactor(for value: String) -> Double {
-        switch value {
-        case "normal":  return 1.0
-        case "reduced": return 0.5
-        case "minimal": return 0.25
-        default: fatalError()
-        }
-    }
-    
     @objc static var linearCurve: Bezier = { () -> Bezier in
         
         let controlPoints: [P] = [_P(0,0), _P(0,0), _P(1,1), _P(1,1)]
@@ -564,13 +586,6 @@ import Cocoa
     }()
     @objc lazy var u_precise: Bool = { c("precise") as! Bool }()
 
-    /// Final multiplier for horizontal scroll output. This is deliberately
-    /// separate from the speed acceleration curve so it can reduce the total
-    /// horizontal distance without changing scroll timing or smoothness.
-    @objc lazy var horizontalScale: Double = {
-        ScrollConfig.horizontalScaleFactor(for: (c("horizontalScale") as? String) ?? "normal")
-    }()
-    
     /// Stored property
     ///     This is used by Scroll.m to determine how to accelerate
     

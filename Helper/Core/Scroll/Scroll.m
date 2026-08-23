@@ -481,7 +481,8 @@ static void heavyProcessing(CGEventRef event, int64_t scrollDeltaAxis1, int64_t 
         [HelperUtility displayUnderMousePointer:&displayID withEvent:event];
         
         /// Get scrollConfig
-        _scrollConfig = [ScrollConfig scrollConfigWithModifiers:newMods inputAxis:inputAxis display:displayID];
+        NSString *appBundleIdentifier = [HelperUtility appUnderMousePointerWithEvent:event].bundleIdentifier;
+        _scrollConfig = [ScrollConfig scrollConfigWithModifiers:newMods inputAxis:inputAxis display:displayID appBundleIdentifier:appBundleIdentifier];
         
     } /// End `if (firstConsecutive) {`
     
@@ -606,7 +607,7 @@ static void heavyProcessing(CGEventRef event, int64_t scrollDeltaAxis1, int64_t 
 
         if (_processedScrollLogCount < 48) {
             _processedScrollLogCount += 1;
-            DDLogInfo("Scroll.m: processed #%d axis=%d inputDelta=%lld rawInterval=%.6f interval=%.6f speed=%d smoothness=%d smooth=%d curve=%d scale=%.2f curvePx=%lld gesture=%d momentum=%d",
+            DDLogInfo("Scroll.m: processed #%d axis=%d inputDelta=%lld rawInterval=%.6f interval=%.6f speed=%d smoothness=%d smooth=%d curve=%d px=%lld gesture=%d momentum=%d",
                       _processedScrollLogCount,
                       inputAxis,
                       scrollDelta,
@@ -616,7 +617,6 @@ static void heavyProcessing(CGEventRef event, int64_t scrollDeltaAxis1, int64_t 
                       _scrollConfig.u_smoothness,
                       _scrollConfig.smoothEnabled,
                       _scrollConfig.animationCurve,
-                      _scrollConfig.horizontalScale,
                       pxToScrollForThisTick,
                       _scrollConfig.animationCurveParams.sendGestureScrolls,
                       _scrollConfig.animationCurveParams.sendMomentumScrolls);
@@ -924,18 +924,6 @@ static void heavyProcessing(CGEventRef event, int64_t scrollDeltaAxis1, int64_t 
 #pragma mark - Send Scroll events
 
 static void sendScroll(int64_t px, MFDirection scrollDirection, BOOL animated, MFAnimationCallbackPhase animationPhase, MFMomentumHint momentumHint, ScrollConfig *config) {
-
-    /// Apply horizontal scaling at the output boundary. Applying it here,
-    /// after the animator has selected its distance and timing, makes Scale
-    /// reduce the actual gesture velocity sent to apps without changing the
-    /// existing smoothness/timing curve. This is important for destinations
-    /// such as Spaces, which respond more to horizontal gesture velocity than
-    /// to the raw wheel delta.
-    if (px != 0
-        && (scrollDirection == kMFDirectionLeft || scrollDirection == kMFDirectionRight)) {
-        double scaledPixels = (double)px * config.horizontalScale;
-        px = MAX(1, llround(scaledPixels));
-    }
     
     /// Get x and y deltas
     

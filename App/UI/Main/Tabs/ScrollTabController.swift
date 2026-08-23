@@ -9,6 +9,7 @@ import Cocoa
 import ReactiveSwift
 import ReactiveCocoa
 import AppKit
+import UniformTypeIdentifiers
 
 @available(macOS 11.0, *)
 class ScrollTabController: NSViewController {
@@ -21,7 +22,7 @@ class ScrollTabController: NSViewController {
     var reverseDirection = ConfigValue<Bool>(configPath: "Scroll.reverseDirection")
     var verticalSpeed = ConfigValue<String>(configPath: "Scroll.verticalSpeed")
     var horizontalSpeed = ConfigValue<String>(configPath: "Scroll.horizontalSpeed")
-    var horizontalScale = ConfigValue<String>(configPath: "Scroll.horizontalScale")
+    var trackpadScope = ConfigValue<String>(configPath: "Scroll.trackpadSimulationScope")
     var precise = ConfigValue<Bool>(configPath: "Scroll.precise")
     var horizontalMod = ConfigValue<UInt>(configPath: "Scroll.modifiers.horizontal")
     var zoomMod = ConfigValue<UInt>(configPath: "Scroll.modifiers.zoom")
@@ -53,7 +54,10 @@ class ScrollTabController: NSViewController {
     @IBOutlet weak var speedPicker: NSPopUpButton!
     @IBOutlet weak var horizontalSmoothPicker: NSPopUpButton!
     @IBOutlet weak var horizontalSpeedPicker: NSPopUpButton!
-    @IBOutlet weak var horizontalScalePicker: NSPopUpButton!
+    @IBOutlet weak var trackpadScopePicker: NSPopUpButton!
+    @IBOutlet weak var trackpadAppsButton: NSButton!
+    @IBOutlet weak var trackpadAppsSummary: NSTextField!
+    @IBOutlet weak var trackpadAppsClearButton: NSButton!
     
     @IBOutlet weak var preciseSection: NSStackView!
     @IBOutlet weak var preciseToggle: NSButton!
@@ -64,6 +68,73 @@ class ScrollTabController: NSViewController {
     @IBOutlet weak var swiftModField: ModCaptureTextField!
     @IBOutlet weak var preciseModField: ModCaptureTextField!
     @IBOutlet weak var restoreDefaultModsButton: NSButton!
+
+    private func configuredTrackpadApps() -> [String] {
+        return (config("Scroll.trackpadSimulationApps") as? NSArray)?.compactMap({ $0 as? String }) ?? []
+    }
+
+    private func updateTrackpadAppsUI() {
+        let scope = trackpadScope.get() ?? "all"
+        let apps = configuredTrackpadApps()
+        let isRestricted = scope != "all"
+
+        trackpadAppsButton.isEnabled = isRestricted
+        trackpadAppsSummary.isEnabled = isRestricted
+        trackpadAppsClearButton.isEnabled = isRestricted && !apps.isEmpty
+
+        if !isRestricted {
+            trackpadAppsSummary.stringValue = "All apps"
+        } else if apps.isEmpty {
+            trackpadAppsSummary.stringValue = scope == "include" ? "No apps included" : "No apps excluded"
+        } else {
+            let appNames = apps.map { bundleID in
+                if let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) {
+                    return appURL.deletingPathExtension().lastPathComponent
+                }
+                return bundleID
+            }
+            trackpadAppsSummary.stringValue = appNames.joined(separator: ", ")
+        }
+    }
+
+    private func saveTrackpadApps(_ bundleIDs: [String]) {
+        setConfig("Scroll.trackpadSimulationApps", NSArray(array: bundleIDs))
+        commitConfig()
+        updateTrackpadAppsUI()
+    }
+
+    @IBAction func chooseTrackpadApps(_ sender: NSButton) {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = true
+        if #available(macOS 12.0, *) {
+            panel.allowedContentTypes = [.applicationBundle]
+        } else {
+            panel.allowedFileTypes = ["app"]
+        }
+        panel.allowsOtherFileTypes = false
+        panel.prompt = "Choose"
+        panel.directoryURL = URL(fileURLWithPath: "/Applications")
+
+        let applySelection: (NSApplication.ModalResponse) -> Void = { [weak self, weak panel] response in
+            guard response == .OK, let self, let panel else { return }
+
+            var seen = Set<String>()
+            let bundleIDs = panel.urls.compactMap({ Bundle(url: $0)?.bundleIdentifier }).filter({ seen.insert($0).inserted })
+            self.saveTrackpadApps(bundleIDs.sorted())
+        }
+
+        if let window = view.window {
+            panel.beginSheetModal(for: window, completionHandler: applySelection)
+        } else {
+            applySelection(panel.runModal())
+        }
+    }
+
+    @IBAction func clearTrackpadApps(_ sender: NSButton) {
+        saveTrackpadApps([])
+    }
     
     private func migrateAxisSpecificScrollSettingsIfNeeded() {
         let legacySmooth = config("Scroll.smooth") as! String
@@ -86,8 +157,16 @@ class ScrollTabController: NSViewController {
             setConfig("Scroll.horizontalSpeed", legacySpeed as NSString)
             didChange = true
         }
-        if config("Scroll.horizontalScale") == nil {
-            setConfig("Scroll.horizontalScale", "normal" as NSString)
+        if config("Scroll.trackpadSimulationScope") == nil {
+            setConfig("Scroll.trackpadSimulationScope", "all" as NSString)
+            didChange = true
+        }
+        if config("Scroll.trackpadSimulationApps") == nil {
+            setConfig("Scroll.trackpadSimulationApps", NSArray())
+            didChange = true
+        }
+        if config("Scroll.horizontalScale") != nil {
+            removeFromConfig("Scroll.horizontalScale")
             didChange = true
         }
 
@@ -186,11 +265,15 @@ class ScrollTabController: NSViewController {
         })
         horizontalSpeedPicker.reactive.selectedIdentifier <~ horizontalSpeed.producer.map({ NSUserInterfaceItemIdentifier($0) })
 
-        /// Horizontal output scale
-        horizontalScale.bindingTarget <~ horizontalScalePicker.reactive.selectedIdentifiers.map({ identifier in
+        /// Trackpad Simulation app scope
+        trackpadScope.bindingTarget <~ trackpadScopePicker.reactive.selectedIdentifiers.map({ identifier in
             identifier!.rawValue
         })
-        horizontalScalePicker.reactive.selectedIdentifier <~ horizontalScale.producer.map({ NSUserInterfaceItemIdentifier($0) })
+        trackpadScopePicker.reactive.selectedIdentifier <~ trackpadScope.producer.map({ NSUserInterfaceItemIdentifier($0) })
+        trackpadScope.producer.startWithValues { [weak self] _ in
+            self?.updateTrackpadAppsUI()
+        }
+        updateTrackpadAppsUI()
         
         /// Precise
         /// Notes:
@@ -306,8 +389,7 @@ class ScrollTabController: NSViewController {
         let modProducer = SignalProducer.combineLatest(horizontalMod.producer, zoomMod.producer, swiftMod.producer, preciseMod.producer) /// We could reuse this down in the Keyboard modifier section, but currently, we're not
         let axisSettingProducer = SignalProducer.combineLatest(
             SignalProducer.combineLatest(verticalSmooth.producer, horizontalSmooth.producer),
-            SignalProducer.combineLatest(verticalSpeed.producer, horizontalSpeed.producer),
-            horizontalScale.producer
+            SignalProducer.combineLatest(verticalSpeed.producer, horizontalSpeed.producer)
         )
         let captureProducer = SignalProducer.combineLatest(axisSettingProducer, reverseDirection.producer, modProducer).combinePrevious()
             
@@ -319,16 +401,16 @@ class ScrollTabController: NSViewController {
                 
                 let (axisSettings0, reverse0, mods0) = previous
                 let (axisSettings1, reverse1, mods1) = current
-                let ((smooth0, horizontalSmooth0), (speed0, horizontalSpeed0), scale0) = axisSettings0
-                let ((smooth1, horizontalSmooth1), (speed1, horizontalSpeed1), scale1) = axisSettings1
+                let ((smooth0, horizontalSmooth0), (speed0, horizontalSpeed0)) = axisSettings0
+                let ((smooth1, horizontalSmooth1), (speed1, horizontalSpeed1)) = axisSettings1
                 
                 let (horizontal0, zoom0, swift0, precise0) = mods0
                 let (horizontal1, zoom1, swift1, precise1) = mods1
                 
-                let wasCaptured = smooth0 != "off" || horizontalSmooth0 != "off" || reverse0 || speed0 != "system" || horizontalSpeed0 != "system" || scale0 != "normal" || horizontal0 != 0 || zoom0 != 0 || swift0 != 0 || precise0 != 0 /// Including the modifiers here is a little 'semantically incorrect' but we still do it. See `getCapturedButtonsAndExcludeButtonsThatAreOnlyCapturedByModifier:` [Sep 2025]
-                let isCaptured  = smooth1 != "off" || horizontalSmooth1 != "off" || reverse1 || speed1 != "system" || horizontalSpeed1 != "system" || scale1 != "normal" || horizontal1 != 0 || zoom1 != 0 || swift1 != 0 || precise1 != 0
+                let wasCaptured = smooth0 != "off" || horizontalSmooth0 != "off" || reverse0 || speed0 != "system" || horizontalSpeed0 != "system" || horizontal0 != 0 || zoom0 != 0 || swift0 != 0 || precise0 != 0 /// Including the modifiers here is a little 'semantically incorrect' but we still do it. See `getCapturedButtonsAndExcludeButtonsThatAreOnlyCapturedByModifier:` [Sep 2025]
+                let isCaptured  = smooth1 != "off" || horizontalSmooth1 != "off" || reverse1 || speed1 != "system" || horizontalSpeed1 != "system" || horizontal1 != 0 || zoom1 != 0 || swift1 != 0 || precise1 != 0
                     
-                DDLogDebug("ScrollTab - smooth: \(smooth0)/\(horizontalSmooth0)->\(smooth1)/\(horizontalSmooth1) reverse: \(reverse0)->\(reverse1) speed: \(speed0)/\(horizontalSpeed0)->\(speed1)/\(horizontalSpeed1) scale: \(scale0)->\(scale1) horizontal: \(horizontal0)->\(horizontal1) zoom: \(zoom0)->\(zoom1) swift: \(swift0)->\(swift1) precise: \(precise0)->\(precise1)")
+                DDLogDebug("ScrollTab - smooth: \(smooth0)/\(horizontalSmooth0)->\(smooth1)/\(horizontalSmooth1) reverse: \(reverse0)->\(reverse1) speed: \(speed0)/\(horizontalSpeed0)->\(speed1)/\(horizontalSpeed1) horizontal: \(horizontal0)->\(horizontal1) zoom: \(zoom0)->\(zoom1) swift: \(swift0)->\(swift1) precise: \(precise0)->\(precise1)")
                 
                 if wasCaptured && !isCaptured {
                     CaptureToasts.showScrollWheelCaptureToast(false)

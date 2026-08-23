@@ -82,7 +82,7 @@ static CFTimeInterval _lastScrollAnalysisResultTimeStamp;
     if (_eventTap == NULL) {
         CGEventMask mask = CGEventMaskBit(kCGEventScrollWheel);
         _eventTap = CGEventTapCreate(kCGHIDEventTap, kCGHeadInsertEventTap, kCGEventTapOptionDefault, mask, eventTapCallback, NULL);
-        DDLogDebug("Scroll.m: _eventTap: %@", _eventTap);
+        DDLogInfo("Scroll.m: created scroll event tap: %d", _eventTap != NULL);
         CFRunLoopSourceRef runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, _eventTap, 0);
         CFRunLoopAddSource(CFRunLoopGetCurrent(), runLoopSource, kCFRunLoopCommonModes);
         CFRelease(runLoopSource);
@@ -136,12 +136,14 @@ void resetState_Unsafe(void) {
 
     
     /// DEBUG
-    DDLogDebug("Scroll.m: startReceiving. isReceiving: %d", CGEventTapIsEnabled(_eventTap));
+    DDLogInfo("Scroll.m: startReceiving before enable: tap=%d receiving=%d", _eventTap != NULL, CGEventTapIsEnabled(_eventTap));
 
     /// Start event tap
     if (!CGEventTapIsEnabled(_eventTap)) {
         CGEventTapEnable(_eventTap, true);
     }
+
+    DDLogInfo("Scroll.m: startReceiving after enable: receiving=%d", CGEventTapIsEnabled(_eventTap));
     
 }
 
@@ -152,7 +154,7 @@ void resetState_Unsafe(void) {
     /// - Also see notes for `- startReceiving`
     
     /// DEBUG
-    DDLogDebug("Scroll.m: stopReceiving. isReceiving: %d", CGEventTapIsEnabled(_eventTap));
+    DDLogInfo("Scroll.m: stopReceiving: tap=%d receiving=%d", _eventTap != NULL, CGEventTapIsEnabled(_eventTap));
     
     
     /// Stop event tap
@@ -192,6 +194,61 @@ static NSString *CGScrollWheelEventDescription(CGEventRef event) {
 
 #pragma clang diagnostic pop
 
+/// Return a scroll delta in the pixel-like units expected by the scroll
+/// processing pipeline.
+///
+/// Real line-scroll events normally provide both a line delta and a pixel
+/// delta. Software KVMs can populate only the line/fixed-point fields, though,
+/// and some event producers have been observed to provide a pixel magnitude
+/// with the wrong sign. Prefer the pixel magnitude for the existing MMF
+/// scaling, but use the signed line/fixed-point fields to recover missing or
+/// incorrect direction information.
+static int64_t scrollPointDeltaForAxis(CGEventRef event,
+                                       CGEventField lineField,
+                                       CGEventField pointField,
+                                       CGEventField fixedPointField) {
+    int64_t lineDelta = CGEventGetIntegerValueField(event, lineField);
+    int64_t pointDelta = CGEventGetIntegerValueField(event, pointField);
+    double fixedPointDelta = CGEventGetDoubleValueField(event, fixedPointField);
+
+    int direction = lineDelta != 0 ? mfsign(lineDelta) : mfsign(fixedPointDelta);
+
+    if (pointDelta != 0) {
+        if (direction != 0 && mfsign(pointDelta) != direction) {
+            return llabs(pointDelta) * direction;
+        }
+        return pointDelta;
+    }
+
+    /// CGEventSource uses ten pixel-like units per line by default. This is
+    /// also the scale used when MMF creates normalized line-scroll events.
+    if (fixedPointDelta != 0.0) {
+        return llround(fixedPointDelta * 10.0);
+    }
+    if (lineDelta != 0) {
+        return lineDelta * 10;
+    }
+
+    return 0;
+}
+
+/// Software KVMs such as Hydra write the signed 16.16 fixed-point fields but
+/// can leave the other axis' integer fields uninitialized. When fixed-point
+/// fields are present, use them for both axes so stale values cannot turn a
+/// one-axis wheel event into a diagonal event.
+static int64_t scrollDeltaForAxis(CGEventRef event,
+                                  CGEventField lineField,
+                                  CGEventField pointField,
+                                  CGEventField fixedPointField,
+                                  bool fixedPointFieldsAreAuthoritative) {
+    if (fixedPointFieldsAreAuthoritative) {
+        double fixedPointDelta = CGEventGetDoubleValueField(event, fixedPointField);
+        return fixedPointDelta == 0.0 ? 0 : llround(fixedPointDelta * 10.0);
+    }
+
+    return scrollPointDeltaForAxis(event, lineField, pointField, fixedPointField);
+}
+
 static CGEventRef eventTapCallback(CGEventTapProxy proxy, CGEventType type, CGEventRef event, void *userInfo) {
     
     
@@ -213,15 +270,29 @@ static CGEventRef eventTapCallback(CGEventTapProxy proxy, CGEventType type, CGEv
     }
 
     /// Return non-scrollwheel events unaltered
+    int64_t senderID         = CGEventGetIntegerValueField(event, (CGEventField)kMFCGEventFieldSenderID);
+    bool isSyntheticEvent    = senderID == 0;
+    double fixedPointAxis1   = CGEventGetDoubleValueField(event, kCGScrollWheelEventFixedPtDeltaAxis1);
+    double fixedPointAxis2   = CGEventGetDoubleValueField(event, kCGScrollWheelEventFixedPtDeltaAxis2);
+    bool fixedPointFieldsAreAuthoritative = isSyntheticEvent && (fixedPointAxis1 != 0.0 || fixedPointAxis2 != 0.0);
     int64_t isPixelBased     = CGEventGetIntegerValueField(event, kCGScrollWheelEventIsContinuous);
     int64_t scrollPhase      = CGEventGetIntegerValueField(event, kCGScrollWheelEventScrollPhase);
-    int64_t scrollDeltaAxis1 = CGEventGetIntegerValueField(event, kCGScrollWheelEventPointDeltaAxis1);
-    int64_t scrollDeltaAxis2 = CGEventGetIntegerValueField(event, kCGScrollWheelEventPointDeltaAxis2);
+    int64_t scrollDeltaAxis1 = scrollDeltaForAxis(event,
+                                                  kCGScrollWheelEventDeltaAxis1,
+                                                  kCGScrollWheelEventPointDeltaAxis1,
+                                                  kCGScrollWheelEventFixedPtDeltaAxis1,
+                                                  fixedPointFieldsAreAuthoritative);
+    int64_t scrollDeltaAxis2 = scrollDeltaForAxis(event,
+                                                  kCGScrollWheelEventDeltaAxis2,
+                                                  kCGScrollWheelEventPointDeltaAxis2,
+                                                  kCGScrollWheelEventFixedPtDeltaAxis2,
+                                                  fixedPointFieldsAreAuthoritative);
     int64_t drawingTabletID  = CGEventGetIntegerValueField(event, kCGTabletEventDeviceID);
+
     bool isDiagonal = scrollDeltaAxis1 != 0 && scrollDeltaAxis2 != 0;
-    if (isPixelBased != 0
-        || scrollPhase != 0 /// Not entirely sure if testing for 'scrollPhase' here makes sense
-        || drawingTabletID != 0 /// Untested
+    if ((!isSyntheticEvent && (isPixelBased != 0
+                               || scrollPhase != 0 /// Not entirely sure if testing for 'scrollPhase' here makes sense
+                               || drawingTabletID != 0)) /// Untested
         || isDiagonal) {
         
         return event;
@@ -232,8 +303,15 @@ static CGEventRef eventTapCallback(CGEventTapProxy proxy, CGEventType type, CGEv
         return event;
     
     /// Get timestamp
-    ///     Get timestamp here instead of _scrollQueue for accurate timing
-    CFTimeInterval tickTime = CGEventGetTimestampInSeconds(event);
+    ///     Get timestamp here instead of _scrollQueue for accurate timing.
+    ///     Software KVMs such as Hydra often leave the CGEvent timestamp at
+    ///     zero or populate it with a value unrelated to the time the event
+    ///     arrived. Using that value makes every synthetic wheel update look
+    ///     like a separate scroll burst, which disables acceleration and
+    ///     repeatedly restarts the slow part of the animation.
+    CFTimeInterval tickTime = isSyntheticEvent
+        ? CACurrentMediaTime()
+        : CGEventGetTimestampInSeconds(event);
     
     /// Create copy of event
     
@@ -266,9 +344,6 @@ static void heavyProcessing(CGEventRef event, int64_t scrollDeltaAxis1, int64_t 
         
         /// Get sending device
         IOHIDDeviceRef sendingDev = CGEventGetSendingDevice(event);
-        
-        /// Debug
-        assert(sendingDev != NULL);
         
         /// Print info on sendingDev
         if (sendingDev != NULL) {
@@ -386,7 +461,8 @@ static void heavyProcessing(CGEventRef event, int64_t scrollDeltaAxis1, int64_t 
         [HelperUtility displayUnderMousePointer:&displayID withEvent:event];
         
         /// Get scrollConfig
-        _scrollConfig = [ScrollConfig scrollConfigWithModifiers:newMods inputAxis:inputAxis display:displayID];
+        NSString *appBundleIdentifier = [HelperUtility appUnderMousePointerWithEvent:event].bundleIdentifier;
+        _scrollConfig = [ScrollConfig scrollConfigWithModifiers:newMods inputAxis:inputAxis display:displayID appBundleIdentifier:appBundleIdentifier];
         
     } /// End `if (firstConsecutive) {`
     
@@ -489,7 +565,7 @@ static void heavyProcessing(CGEventRef event, int64_t scrollDeltaAxis1, int64_t 
             /// Apply fastScroll
             pxToScrollForThisTick *= fastScrollFactor;
         }
-        
+
         ///
         /// Make direction change stop scroll animation
         ///
@@ -508,12 +584,12 @@ static void heavyProcessing(CGEventRef event, int64_t scrollDeltaAxis1, int64_t 
             [_animator cancel];
             return;
         }
-        
+
         /// Debug
         DDLogDebug("Scroll.m: consecTicks: %lld, consecSwipes: %lld, consecSwipesFree: %f", scrollAnalysisResult.consecutiveScrollTickCounter, scrollAnalysisResult.DEBUG_consecutiveScrollSwipeCounterRaw, scrollAnalysisResult.consecutiveScrollSwipeCounter);
         DDLogDebug("Scroll.m: timeBetweenTicks: %f, timeBetweenTicksRaw: %f, diff: %f, ticks: %lld", scrollAnalysisResult.timeBetweenTicks, scrollAnalysisResult.DEBUG_timeBetweenTicksRaw, scrollAnalysisResult.timeBetweenTicks - scrollAnalysisResult.DEBUG_timeBetweenTicksRaw, scrollAnalysisResult.consecutiveScrollTickCounter);
     }
-    
+
     ///
     /// Send scroll events
     ///
@@ -901,7 +977,7 @@ static void sendOutputEvents(int64_t dx, int64_t dy, MFScrollOutputType outputTy
     if (dx+dy == 0) {
         assert(eventPhase == kIOHIDEventPhaseEnded || eventPhase == kIOHIDEventPhaseCancelled);
     }
-    
+
     /// Send events based on outputType
     
     if (outputType == kMFScrollOutputTypeGestureScroll) {

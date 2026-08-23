@@ -63,18 +63,25 @@ import Cocoa
         shared = ScrollConfig()
         cache = nil
     }
-    private static var cache: [_HT<MFScrollModificationResult, MFAxis, CGDirectDisplayID>: ScrollConfig]? = nil
+    private struct CacheKey: Hashable {
+        let modifiers: MFScrollModificationResult
+        let inputAxis: MFAxis
+        let display: CGDirectDisplayID
+        let trackpadSimulation: Bool
+    }
+    private static var cache: [CacheKey: ScrollConfig]? = nil
     
     // MARK: Overrides
     
-    @objc static func scrollConfig(modifiers: MFScrollModificationResult, inputAxis: MFAxis, display: CGDirectDisplayID) -> ScrollConfig {
+    @objc static func scrollConfig(modifiers: MFScrollModificationResult, inputAxis: MFAxis, display: CGDirectDisplayID, appBundleIdentifier: String?) -> ScrollConfig {
         
         /// Try to get result from cache
         
         if cache == nil {
             cache = .init()
         }
-        let key = _HT(a: modifiers, b: inputAxis, c: display)
+        let trackpadSimulation = shared.trackpadSimulationEnabled(forAppBundleIdentifier: appBundleIdentifier)
+        let key = CacheKey(modifiers: modifiers, inputAxis: inputAxis, display: display, trackpadSimulation: trackpadSimulation)
         
         if let fromCache = cache![key] {
             return fromCache
@@ -85,6 +92,8 @@ import Cocoa
             
             /// Copy og settings
             let new = shared.copy() as! ScrollConfig
+            new.u_trackpadSimulation = trackpadSimulation
+            new.applyAxisSpecificUserSettings(for: inputAxis)
             
             /// Declare overridables
             var u_speed = new.u_speed
@@ -233,7 +242,107 @@ import Cocoa
     }
     
     // MARK: ???
-    
+
+    /// Read the axis-specific setting when present, while keeping existing
+    /// installations on the original shared setting until the new controls
+    /// have been initialized by the app.
+    private func axisSpecificSetting(_ key: String, for inputAxis: MFAxis) -> String {
+        let axisName = inputAxis == kMFAxisHorizontal ? "horizontal" : "vertical"
+        let axisKey = "\(axisName)\(key.prefix(1).uppercased())\(key.dropFirst())"
+        return (c(axisKey) as? String) ?? (c(key) as! String)
+    }
+
+    /// Resolve Trackpad Simulation for the application under the pointer.
+    /// Missing scope data uses the original all-apps behavior so older
+    /// configurations continue to work before the app has migrated them.
+    private func trackpadSimulationEnabled(forAppBundleIdentifier appBundleIdentifier: String?) -> Bool {
+        guard (c("trackpadSimulation") as? Bool) == true else { return false }
+
+        let scope = (c("trackpadSimulationScope") as? String) ?? "all"
+        let appBundleIDs = (c("trackpadSimulationApps") as? NSArray)?.compactMap({ $0 as? String }) ?? []
+
+        switch scope {
+        case "include":
+            guard let appBundleIdentifier else { return false }
+            return appBundleIDs.contains(appBundleIdentifier)
+        case "exclude":
+            guard let appBundleIdentifier else { return true }
+            return !appBundleIDs.contains(appBundleIdentifier)
+        case "all":
+            return true
+        default:
+            return true
+        }
+    }
+
+    /// `shared.copy()` eagerly copies many lazy derived properties. Apply the
+    /// selected axis settings and refresh the derived values that depend on
+    /// the user-facing smoothness choice before the acceleration curve is
+    /// calculated.
+    private func applyAxisSpecificUserSettings(for inputAxis: MFAxis) {
+        let speedString = axisSpecificSetting("speed", for: inputAxis)
+        switch speedString {
+        case "system":  u_speed = kMFScrollSpeedSystem
+        case "low":     u_speed = kMFScrollSpeedLow
+        case "medium":  u_speed = kMFScrollSpeedMedium
+        case "high":    u_speed = kMFScrollSpeedHigh
+        default: fatalError()
+        }
+
+        let smoothString = axisSpecificSetting("smooth", for: inputAxis)
+        switch smoothString {
+        case "off":     u_smoothness = kMFScrollSmoothnessOff
+        case "low":     u_smoothness = kMFScrollSmoothnessLow
+        case "regular": u_smoothness = kMFScrollSmoothnessRegular
+        case "high":    u_smoothness = kMFScrollSmoothnessHigh
+        default: fatalError()
+        }
+
+        let axisAnimationCurve: MFScrollAnimationCurveName
+        switch u_smoothness {
+        case kMFScrollSmoothnessOff:        axisAnimationCurve = kMFScrollAnimationCurveNameNone
+        case kMFScrollSmoothnessLow:        axisAnimationCurve = kMFScrollAnimationCurveNameVeryLowInertia
+        case kMFScrollSmoothnessRegular:    axisAnimationCurve = kMFScrollAnimationCurveNameLowInertia
+        case kMFScrollSmoothnessHigh:       axisAnimationCurve = u_trackpadSimulation ? kMFScrollAnimationCurveNameHighInertiaPlusTrackpadSim : kMFScrollAnimationCurveNameHighInertia
+        default: fatalError()
+        }
+
+        animationCurve = axisAnimationCurve
+        fastScrollCurve = axisFastScrollCurve(for: axisAnimationCurve)
+
+        switch axisAnimationCurve {
+        case kMFScrollAnimationCurveNameHighInertia, kMFScrollAnimationCurveNameHighInertiaPlusTrackpadSim:
+            consecutiveScrollSwipeMaxInterval = 600.0 / 1000.0
+            consecutiveScrollSwipeMinTickSpeed = 12.0
+        case kMFScrollAnimationCurveNameNone:
+            consecutiveScrollSwipeMaxInterval = 325.0 / 1000.0
+            consecutiveScrollSwipeMinTickSpeed = 16.0
+        default:
+            consecutiveScrollSwipeMaxInterval = 375.0 / 1000.0
+            consecutiveScrollSwipeMinTickSpeed = 16.0
+        }
+    }
+
+    private func axisFastScrollCurve(for animationCurve: MFScrollAnimationCurveName) -> ScrollSpeedupCurve? {
+        switch animationCurve {
+        case kMFScrollAnimationCurveNameNone:
+            return ScrollSpeedupCurve(swipeThreshold: 6, initialSpeedup: 1.4, exponentialSpeedup: 3.0)
+        case kMFScrollAnimationCurveNameVeryLowInertia:
+            return ScrollSpeedupCurve(swipeThreshold: 1, initialSpeedup: 1, exponentialSpeedup: 7.5)
+        case kMFScrollAnimationCurveNameLowInertia:
+            return ScrollSpeedupCurve(swipeThreshold: 3, initialSpeedup: 1.33, exponentialSpeedup: 7.5)
+        case kMFScrollAnimationCurveNameHighInertia, kMFScrollAnimationCurveNameHighInertiaPlusTrackpadSim:
+            return ScrollSpeedupCurve(swipeThreshold: 2, initialSpeedup: 1.33, exponentialSpeedup: 7.5)
+        case kMFScrollAnimationCurveNameTouchDriver, kMFScrollAnimationCurveNameTouchDriverLinear:
+            return ScrollSpeedupCurve(swipeThreshold: 3, initialSpeedup: 1.33, exponentialSpeedup: 7.5)
+        case kMFScrollAnimationCurveNamePreciseScroll, kMFScrollAnimationCurveNameQuickScroll:
+            return nil
+        default:
+            assert(false)
+            return nil
+        }
+    }
+
     @objc static var linearCurve: Bezier = { () -> Bezier in
         
         let controlPoints: [P] = [_P(0,0), _P(0,0), _P(1,1), _P(1,1)]
@@ -476,7 +585,7 @@ import Cocoa
         }
     }()
     @objc lazy var u_precise: Bool = { c("precise") as! Bool }()
-    
+
     /// Stored property
     ///     This is used by Scroll.m to determine how to accelerate
     
@@ -604,7 +713,21 @@ fileprivate func animationCurveParamsMap(name: MFScrollAnimationCurveName) -> MF
         ///                 - Smooth scrolling not available in Chrome on macOS (?) https://www.reddit.com/r/chrome/comments/153tfev/smooth_scrolling_not_available_on_mac/
         ///         [Jun 4 2025] SmoothFox.js for Firefox – I've seen this recommended. I should try it.
         ///         [Jun 4 2025] I saw some Logitech Mouse have nice scrolling recently and some MMF user asked for less smoothing on GitHub recently after coming from Logitech's Driver. I remember I used to hate Logi Options scrolling but maybe they improved it or my tasted have changed?
-        
+
+        /// The experimental curve below is intentionally disabled, but the
+        /// "Low" smoothness option is exposed by the axis-specific controls.
+        /// Keep that option safe and usable by falling back to the established
+        /// responsive linear curve instead of reaching the old fatalError().
+        return MFScrollAnimationCurveParameters(baseCurve: ScrollConfig.linearCurve,
+                                                speedSmoothing: -1,
+                                                baseMsPerStep: 140,
+                                                baseMsPerStepCurve: nil,
+                                                dragExponent: 1.05,
+                                                dragCoefficient: 15,
+                                                stopSpeed: 30,
+                                                sendGestureScrolls: false,
+                                                sendMomentumScrolls: false)
+
         #if false /// [Jul 2025] Would like to use `MF_TEST 0` here, but not sure how in Swift
         if _1 {
             var baseCurve:          Bezier?          = nil
@@ -702,9 +825,7 @@ fileprivate func animationCurveParamsMap(name: MFScrollAnimationCurveName) -> MF
         }
         
         #endif
-        
-        fatalError()
-        
+
     case kMFScrollAnimationCurveNameLowInertia:
 
         /// Option 5: Higher baseMsPerStep

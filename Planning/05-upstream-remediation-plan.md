@@ -227,7 +227,7 @@ Finish the active fork feature separately from this compatibility series, then c
 
 - Define app identity precedence: bundle identifier, executable path, Java/application wrappers, and fallback process name.
 - Define include/exclude semantics, defaults, inheritance, and what happens when the target app changes while a gesture is in progress.
-- Migrate existing configuration without losing licenses, device settings, or axis values. The current migration seeds some new values only when the Scrolling tab loads; move that work to a versioned configuration migration so the helper does not depend on UI initialization.
+- Completed in the scrolling increment: the versioned 24→25 configuration migration now preserves legacy shared scroll speed/smoothness while seeding the vertical, horizontal, and app-scoped trackpad defaults before normal helper operation. It also removes the experimental horizontal-scale key, which is intentionally not part of this fork.
 - Extend app identity beyond a bundle identifier before treating this feature family as resolved: executable paths, Java/wrapper processes, and a controlled process-name fallback need explicit behavior.
 - Keep policy decisions in the app/config layer; the helper should receive a validated immutable snapshot and a clear update boundary.
 - Test a missing/uninstalled app, multiple matching processes, app relaunch, full-screen apps, iPhone Mirroring, and permission denial.

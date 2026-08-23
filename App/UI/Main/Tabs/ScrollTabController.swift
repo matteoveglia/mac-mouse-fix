@@ -48,6 +48,7 @@ class ScrollTabController: NSViewController {
     @IBOutlet weak var trackpadSection: NSStackView!
     @IBOutlet weak var trackpadToggle: NSButton!
     @IBOutlet weak var trackpadHint: NSTextField!
+    @IBOutlet weak var trackpadScopeStack: NSStackView!
     
     @IBOutlet weak var reverseDirectionToggle: NSButton!
     
@@ -55,7 +56,6 @@ class ScrollTabController: NSViewController {
     @IBOutlet weak var horizontalSmoothPicker: NSPopUpButton!
     @IBOutlet weak var horizontalSpeedPicker: NSPopUpButton!
     @IBOutlet weak var trackpadScopePicker: NSPopUpButton!
-    @IBOutlet weak var trackpadAppsRow: NSStackView!
     @IBOutlet weak var trackpadAppsButton: NSButton!
     @IBOutlet weak var trackpadAppsSummary: NSTextField!
     @IBOutlet weak var trackpadAppsClearButton: NSButton!
@@ -70,6 +70,141 @@ class ScrollTabController: NSViewController {
     @IBOutlet weak var preciseModField: ModCaptureTextField!
     @IBOutlet weak var restoreDefaultModsButton: NSButton!
 
+    private var trackpadScopePanel: NSBox?
+    private var trackpadScopePanelHeightConstraint: NSLayoutConstraint?
+    private var trackpadScopePanelContent: NSStackView?
+    private var trackpadRestrictedAppsStack: NSStackView?
+    private var trackpadAppsTitle: NSTextField?
+
+    private func removeWidthConstraints(from view: NSView) {
+        view.removeConstraints(view.constraints.filter({ $0.firstAttribute == .width && $0.secondItem == nil }))
+    }
+
+    /// Rebuild the app-scope controls into a small, self-contained settings panel.
+    /// The original controls are still loaded from the storyboard so their actions,
+    /// accessibility identifiers, and existing localization metadata remain intact.
+    private func configureTrackpadScopeUI() {
+        guard trackpadScopePanel == nil else { return }
+        guard let scopeStack = trackpadScopeStack,
+              let scopeRow = scopeStack.arrangedSubviews.first as? NSStackView,
+              let appsRow = scopeStack.arrangedSubviews.last as? NSStackView,
+              let applyToLabel = scopeRow.arrangedSubviews.compactMap({ $0 as? NSTextField }).first else {
+            return
+        }
+
+        let appControls: [NSControl] = [trackpadAppsButton, trackpadAppsSummary, trackpadAppsClearButton]
+
+        scopeRow.removeArrangedSubview(applyToLabel)
+        scopeRow.removeArrangedSubview(trackpadScopePicker)
+        appsRow.removeArrangedSubview(trackpadAppsButton)
+        appsRow.removeArrangedSubview(trackpadAppsSummary)
+        appsRow.removeArrangedSubview(trackpadAppsClearButton)
+        scopeStack.removeArrangedSubview(scopeRow)
+        scopeStack.removeArrangedSubview(appsRow)
+
+        applyToLabel.removeFromSuperview()
+        trackpadScopePicker.removeFromSuperview()
+        appControls.forEach({ $0.removeFromSuperview() })
+        scopeRow.removeFromSuperview()
+        appsRow.removeFromSuperview()
+
+        let scopeTitle = NSTextField(labelWithString: "App scope")
+        scopeTitle.font = NSFont.systemFont(ofSize: NSFont.smallSystemFontSize)
+        scopeTitle.textColor = .secondaryLabelColor
+
+        applyToLabel.removeConstraints(applyToLabel.constraints.filter({ $0.firstAttribute == .width && $0.secondItem == nil }))
+        applyToLabel.widthAnchor.constraint(equalToConstant: 70).isActive = true
+
+        removeWidthConstraints(from: trackpadScopePicker)
+        trackpadScopePicker.widthAnchor.constraint(equalToConstant: 170).isActive = true
+
+        let scopeSelectionRow = NSStackView(views: [applyToLabel, trackpadScopePicker])
+        scopeSelectionRow.orientation = .horizontal
+        scopeSelectionRow.alignment = .centerY
+        scopeSelectionRow.spacing = 10
+        scopeSelectionRow.distribution = .fill
+
+        let appTitle = NSTextField(labelWithString: "Included apps")
+        appTitle.font = NSFont.systemFont(ofSize: NSFont.smallSystemFontSize)
+        appTitle.textColor = .secondaryLabelColor
+        trackpadAppsTitle = appTitle
+
+        trackpadAppsSummary.font = NSFont.systemFont(ofSize: NSFont.smallSystemFontSize)
+        trackpadAppsSummary.textColor = .secondaryLabelColor
+        trackpadAppsSummary.maximumNumberOfLines = 1
+        trackpadAppsSummary.cell?.lineBreakMode = .byTruncatingTail
+
+        let appListRow = NSStackView(views: [appTitle, trackpadAppsSummary])
+        appListRow.orientation = .horizontal
+        appListRow.alignment = .centerY
+        appListRow.spacing = 10
+        appListRow.distribution = .fill
+        appTitle.widthAnchor.constraint(equalToConstant: 100).isActive = true
+
+        removeWidthConstraints(from: trackpadAppsButton)
+        trackpadAppsButton.widthAnchor.constraint(equalToConstant: 122).isActive = true
+        removeWidthConstraints(from: trackpadAppsClearButton)
+        trackpadAppsClearButton.widthAnchor.constraint(equalToConstant: 52).isActive = true
+
+        let flexibleSpace = NSView()
+        flexibleSpace.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        flexibleSpace.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+
+        let appActionsRow = NSStackView(views: [trackpadAppsButton, flexibleSpace, trackpadAppsClearButton])
+        appActionsRow.orientation = .horizontal
+        appActionsRow.alignment = .centerY
+        appActionsRow.spacing = 8
+        appActionsRow.distribution = .fill
+
+        let restrictedAppsStack = NSStackView(views: [appListRow, appActionsRow])
+        restrictedAppsStack.orientation = .vertical
+        restrictedAppsStack.alignment = .leading
+        restrictedAppsStack.spacing = 6
+        restrictedAppsStack.distribution = .fill
+        trackpadRestrictedAppsStack = restrictedAppsStack
+
+        let panelContent = NSStackView(views: [scopeTitle, scopeSelectionRow, restrictedAppsStack])
+        panelContent.orientation = .vertical
+        panelContent.alignment = .leading
+        panelContent.spacing = 8
+        panelContent.distribution = .fill
+        panelContent.edgeInsets = NSEdgeInsets(top: 12, left: 14, bottom: 12, right: 14)
+
+        scopeSelectionRow.widthAnchor.constraint(equalTo: panelContent.widthAnchor).isActive = true
+        appListRow.widthAnchor.constraint(equalTo: panelContent.widthAnchor).isActive = true
+        appActionsRow.widthAnchor.constraint(equalTo: panelContent.widthAnchor).isActive = true
+        restrictedAppsStack.widthAnchor.constraint(equalTo: panelContent.widthAnchor).isActive = true
+
+        let panel = NSBox()
+        panel.boxType = .custom
+        panel.borderColor = .separatorColor
+        panel.fillColor = .windowBackgroundColor
+        panel.cornerRadius = 8
+        panel.contentViewMargins = .zero
+        panel.contentView = panelContent
+        panel.translatesAutoresizingMaskIntoConstraints = false
+        panel.setContentHuggingPriority(.required, for: .vertical)
+        panel.setContentCompressionResistancePriority(.required, for: .vertical)
+        trackpadScopePanel = panel
+        trackpadScopePanelContent = panelContent
+        let panelHeightConstraint = panel.heightAnchor.constraint(equalToConstant: 116)
+        panelHeightConstraint.isActive = true
+        trackpadScopePanelHeightConstraint = panelHeightConstraint
+
+        let scopeIndex = trackpadSection.arrangedSubviews.firstIndex(of: scopeStack) ?? trackpadSection.arrangedSubviews.count
+        trackpadSection.removeArrangedSubview(scopeStack)
+        scopeStack.removeFromSuperview()
+        trackpadSection.insertArrangedSubview(panel, at: scopeIndex)
+        panel.widthAnchor.constraint(equalTo: trackpadSection.widthAnchor).isActive = true
+    }
+
+    private func updateTrackpadScopePanelHeight() {
+        guard let panelContent = trackpadScopePanelContent else { return }
+        panelContent.needsLayout = true
+        panelContent.layoutSubtreeIfNeeded()
+        trackpadScopePanelHeightConstraint?.constant = ceil(panelContent.fittingSize.height + 2)
+    }
+
     private func configuredTrackpadApps() -> [String] {
         return (config("Scroll.trackpadSimulationApps") as? NSArray)?.compactMap({ $0 as? String }) ?? []
     }
@@ -79,10 +214,12 @@ class ScrollTabController: NSViewController {
         let apps = configuredTrackpadApps()
         let isRestricted = scope != "all"
 
-        trackpadAppsRow.isHidden = !isRestricted
+        trackpadRestrictedAppsStack?.isHidden = !isRestricted
         trackpadAppsButton.isEnabled = isRestricted
         trackpadAppsSummary.isEnabled = isRestricted
         trackpadAppsClearButton.isEnabled = isRestricted && !apps.isEmpty
+        trackpadAppsTitle?.stringValue = scope == "include" ? "Included apps" : "Excluded apps"
+        updateTrackpadScopePanelHeight()
 
         if !isRestricted {
             trackpadAppsSummary.stringValue = ""
@@ -251,6 +388,8 @@ class ScrollTabController: NSViewController {
         /// Trackpad
         trackpad.bindingTarget <~ trackpadToggle.reactive.boolValues
         trackpadToggle.reactive.boolValue <~ trackpad.producer
+
+        configureTrackpadScopeUI()
         
         /// Natural direction
         reverseDirection.bindingTarget <~ reverseDirectionToggle.reactive.boolValues

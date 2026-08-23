@@ -2032,9 +2032,9 @@ your mouse. (**Logitech M720 Triathlon**)&gt;</string>
                         <outlet property="trackpadHint" destination="ljz-rp-t9J" id="pUy-mv-lBP"/>
                         <outlet property="trackpadAppsButton" destination="ScW-Trackpad-Apps-Button-001" id="ScW-Trackpad-Apps-Button-Outlet"/>
                         <outlet property="trackpadAppsClearButton" destination="ScW-Trackpad-Clear-Apps-Button-001" id="ScW-Trackpad-Clear-Apps-Outlet"/>
-                        <outlet property="trackpadAppsRow" destination="ScW-Trackpad-Apps-Row-001" id="ScW-Trackpad-Apps-Row-Outlet"/>
                         <outlet property="trackpadAppsSummary" destination="ScW-Trackpad-Apps-Summary-001" id="ScW-Trackpad-Apps-Summary-Outlet"/>
                         <outlet property="trackpadSection" destination="TFj-AL-hbW" id="ID7-aO-Rky"/>
+                        <outlet property="trackpadScopeStack" destination="ScW-Trackpad-Scope-Stack-001" id="ScW-Trackpad-Scope-Stack-Outlet"/>
                         <outlet property="trackpadScopePicker" destination="ScW-Trackpad-Scope-Picker-001" id="ScW-Trackpad-Scope-Outlet"/>
                         <outlet property="trackpadToggle" destination="BaB-SW-lek" id="TyK-xD-IEc"/>
                         <outlet property="zoomModField" destination="HZF-jc-NcN" id="Cbj-dq-4Sv"/>

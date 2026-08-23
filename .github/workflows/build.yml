@@ -27,7 +27,11 @@ jobs:
           xcode-select -p
           xcodebuild -version
 
+      - name: Prepare disposable build source
+        run: ditto "$GITHUB_WORKSPACE" "$RUNNER_TEMP/source"
+
       - name: Build app and helper
+        working-directory: ${{ runner.temp }}/source
         run: |
           xcodebuild \
             -project "Mouse Fix.xcodeproj" \
@@ -42,6 +46,7 @@ jobs:
             CODE_SIGNING_REQUIRED=NO
 
       - name: Build release app and helper
+        working-directory: ${{ runner.temp }}/source
         run: |
           xcodebuild \
             -project "Mouse Fix.xcodeproj" \
@@ -56,6 +61,7 @@ jobs:
             CODE_SIGNING_REQUIRED=NO
 
       - name: Compile Dock-swipe harness
+        working-directory: ${{ runner.temp }}/source
         run: |
           xcodebuild \
             -project "Mouse Fix.xcodeproj" \
@@ -68,3 +74,6 @@ jobs:
             -onlyUsePackageVersionsFromResolvedFile \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO
+
+      - name: Verify checkout was not modified by builds
+        run: git -C "$GITHUB_WORKSPACE" diff --exit-code -- App/SupportFiles/Info.plist Helper/SupportFiles/Info.plist

@@ -148,7 +148,7 @@ Old pre-Ventura behavior, issues superseded by native macOS functionality, empty
 
 5. Test Debug and Release signing separately. Local Debug entitlements intentionally lack the shared keychain group, while the Release configuration and app/helper keychain-sharing behavior remain unverified.
 
-Current implementation: `.github/workflows/build.yml` compiles the unsigned Debug and Release App/Helper plus the Dock-swipe harness on pushes, pull requests, and manual dispatch. A locally signed Release build is deliberately blocked: the fork retains upstream's `com.nuebling.*` identifiers and Release keychain access group, which cannot be provisioned by this Apple team. Choose owned bundle identifiers and a keychain migration before attempting a distributable signed Release artifact.
+Current implementation: `.github/workflows/build.yml` compiles the unsigned Debug and Release App/Helper plus the Dock-swipe harness on pushes, pull requests, and manual dispatch. It builds from a disposable runner copy because the existing Release build phase increments the source plist version; CI verifies the checked-out version plists remain unchanged. A locally signed Release build is deliberately blocked: the fork retains upstream's `com.nuebling.*` identifiers and Release keychain access group, which cannot be provisioned by this Apple team. Choose owned bundle identifiers and a keychain migration before attempting a distributable signed Release artifact.
 
 ### WP1 — macOS 27 Dock-swipe bridge
 

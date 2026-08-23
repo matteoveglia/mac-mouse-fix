@@ -41,6 +41,20 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO
 
+      - name: Build release app and helper
+        run: |
+          xcodebuild \
+            -project "Mouse Fix.xcodeproj" \
+            -scheme App \
+            -configuration Release \
+            -sdk macosx \
+            -destination 'platform=macOS' \
+            -derivedDataPath "$RUNNER_TEMP/DerivedData" \
+            -clonedSourcePackagesDirPath "$RUNNER_TEMP/SourcePackages" \
+            -onlyUsePackageVersionsFromResolvedFile \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO
+
       - name: Compile Dock-swipe harness
         run: |
           xcodebuild \

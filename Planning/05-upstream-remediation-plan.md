@@ -145,9 +145,10 @@ Old pre-Ventura behavior, issues superseded by native macOS functionality, empty
 2. Build App and Helper from a clean checkout in Debug and Release. Check that local signing, entitlements, bundle identifiers, Sparkle configuration, and helper registration match the intended distribution model.
 3. Add a macOS CI workflow that builds both targets and runs non-UI tests. Keep hardware and Accessibility tests as explicitly labelled manual jobs.
 4. Record a baseline before each functional change. The current feature work from the other chat is part of that baseline; do not reset, stash, or rebase it without coordination.
+
 5. Test Debug and Release signing separately. Local Debug entitlements intentionally lack the shared keychain group, while the Release configuration and app/helper keychain-sharing behavior remain unverified.
 
-Current implementation: `.github/workflows/build.yml` compiles the unsigned Debug App/Helper and Dock-swipe harness on pushes, pull requests, and manual dispatch. Release signing/archiving stays an explicit future lane because it needs fork-owned certificates and the existing Release build phases mutate version metadata.
+Current implementation: `.github/workflows/build.yml` compiles the unsigned Debug and Release App/Helper plus the Dock-swipe harness on pushes, pull requests, and manual dispatch. A locally signed Release build is deliberately blocked: the fork retains upstream's `com.nuebling.*` identifiers and Release keychain access group, which cannot be provisioned by this Apple team. Choose owned bundle identifiers and a keychain migration before attempting a distributable signed Release artifact.
 
 ### WP1 — macOS 27 Dock-swipe bridge
 

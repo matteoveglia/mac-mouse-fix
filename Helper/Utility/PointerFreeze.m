@@ -30,6 +30,7 @@ static CGPoint _origin;
 static CGPoint _puppetCursorPosition;
 
 static BOOL _keepPointerMoving;
+static BOOL _pointerIsHiddenByPointerFreeze;
 
 static int _cgsConnection; /// This is used by private APIs to talk to the window server and do fancy shit like hiding the cursor from a background application
 static NSCursor *_puppetCursor;
@@ -112,6 +113,23 @@ static BOOL setPointerFreezeEventTapEnabled(BOOL enabled, const char *reason) {
 + (void)shutdown {
     _eventTapShouldBeEnabled = NO;
     _coolEventTapIsEnabled = false;
+
+    /// Helper termination can interrupt a modified drag while its puppet cursor
+    /// is visible. Restore only the cursor state owned by this class before
+    /// tearing down the tap, otherwise disabling MMF can leave the real cursor
+    /// hidden until another process happens to balance the display hide count.
+    if (_queue != NULL) {
+        dispatch_sync(_queue, ^{
+            if (_pointerIsHiddenByPointerFreeze) {
+                [ModificationUtility hideMousePointer:NO];
+                [PointerFreeze drawPuppetCursor:NO fresh:NO];
+                _pointerIsHiddenByPointerFreeze = NO;
+            }
+            _keepPointerMoving = NO;
+            setSuppressionInterval(kMFEventSuppressionIntervalDefault);
+        });
+    }
+
     [ModificationUtility invalidateEventTap:&_eventTap source:&_eventTapSource runLoop:GlobalEventTapThread.runLoop mode:kCFRunLoopCommonModes];
 }
 
@@ -170,7 +188,7 @@ static BOOL setPointerFreezeEventTapEnabled(BOOL enabled, const char *reason) {
         }
         
         if (keepPointerMoving) {
-            
+
             /// Init puppet cursor pos
             _puppetCursorPosition = origin;
             
@@ -191,6 +209,7 @@ static BOOL setPointerFreezeEventTapEnabled(BOOL enabled, const char *reason) {
             
             /// Hid cursor
             [ModificationUtility hideMousePointer:YES];
+            _pointerIsHiddenByPointerFreeze = YES;
         }
     });
 }
@@ -310,10 +329,11 @@ CGEventRef _Nullable mouseMovedCallback(CGEventTapProxy proxy, CGEventType type,
         /// Warp actual cursor to position of puppet cursor
         CGWarpMouseCursorPosition(warpDestination);
         
-        if (_keepPointerMoving) {
-        
+        if (_pointerIsHiddenByPointerFreeze) {
+
             /// Show mouse pointer again
             [ModificationUtility hideMousePointer:NO];
+            _pointerIsHiddenByPointerFreeze = NO;
             
             /// Undraw puppet cursor
             [PointerFreeze drawPuppetCursor:NO fresh:NO];

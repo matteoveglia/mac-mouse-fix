@@ -83,6 +83,26 @@ jobs:
             -o "$RUNNER_TEMP/event-tap-handle-tests"
           "$RUNNER_TEMP/event-tap-handle-tests"
 
+          xcrun clang \
+            -fobjc-arc \
+            -framework Foundation \
+            -Werror \
+            -I Shared/IOKit \
+            Shared/IOKit/MFDockSwipePayload.m \
+            Tests/MFDockSwipePayloadTests.m \
+            -o "$RUNNER_TEMP/dock-swipe-payload-tests"
+          "$RUNNER_TEMP/dock-swipe-payload-tests"
+
+          xcrun clang \
+            -fobjc-arc \
+            -framework Foundation \
+            -Werror \
+            -I Shared/IOKit \
+            Shared/IOKit/CGEventHIDEventAttachment.m \
+            Tests/CGEventHIDEventAttachmentTests.m \
+            -o "$RUNNER_TEMP/hid-event-attachment-tests"
+          "$RUNNER_TEMP/hid-event-attachment-tests"
+
       - name: Prepare disposable build source
         run: ditto "$GITHUB_WORKSPACE" "$RUNNER_TEMP/source"
 

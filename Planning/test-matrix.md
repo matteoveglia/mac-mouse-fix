@@ -21,10 +21,11 @@ checks remain explicitly open.
 | HID++ protocol core | Pass (synthetic only) | Objective-C fixture suite verifies strict short/long parsing, one in-flight request, timeout, disconnect, idempotent stop, and rejection of late responses. The fixture transport has no IOKit or hardware-write path. |
 | Logitech model support | Hardware blocked | No model is claimed supported yet. Capture M650/L, MX Master, Lift, and M720 reports over relevant Bolt/Unifying/Bluetooth transports before adding an IOKit adapter or reprogramming controls. Ordinary CGEvent button capture remains independent. |
 | Device hot-unplug | Pass | The signed P1 build retained button remapping and helper operation across the requested unplug/reconnect check. Transport-specific Logitech HID++ reprogramming remains outside this result. |
-| Pointer-freeze / two-finger drag | Manual pending | Start the gesture, move briefly, then release. The real cursor must reappear and move normally. |
+| Event-tap ownership core | Pass | Fake-backend tests cover failed tap/source creation, inert creation, idempotent toggles, refused enable, late-enable rejection, stable teardown order, and exactly-once release. The signed lifecycle build also passed rapid disable/enable cycling, quit/reopen, shortcut capture, normal buttons/scrolling, and modified-drag teardown. |
+| Pointer-freeze / two-finger drag | Pass | The signed lifecycle build completed modified-drag testing without leaving the real pointer frozen or hidden. Extended soak and interruption testing remains part of the broader lifecycle matrix. |
 | Scroll and virtual/remote input | Partial pass | Fast scrolling works with a mouse remote to this machine. Ordinary scrolling, browser maps, iPhone Mirroring/other remote sources if available, and helper restart remain pending. Do not assess horizontal scaling: it is intentionally not part of this fork. |
 | Dock swipes | Manual pending | Test normal/inverted drag into Spaces, Mission Control, Show Desktop, Launchpad, multiple displays, reversals, and releases at low/high velocity. |
-| Accessibility / lifecycle | Manual pending | Cold launch, grant/revoke Accessibility, disable/re-enable, sleep/wake, login launch, fast-user switching, and device disconnect/reconnect. |
+| Accessibility / lifecycle | Partial pass | Rapid disable/enable cycling and quit/reopen passed in the signed lifecycle build. Cold permission revoke/regrant, sleep/wake, login launch, and fast-user switching remain pending. |
 | Release distribution | Blocked by product decision | The fork retains upstream `com.nuebling.*` IDs and keychain group. Choose owned bundle IDs and keychain migration before signed Release distribution. |
 
 ## Test protocol

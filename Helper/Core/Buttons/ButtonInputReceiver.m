@@ -13,7 +13,7 @@
 #import "ButtonTriggerGenerator.h"
 #import "Queue.h"
 #import "SharedUtility.h"
-#import "ModificationUtility.h"
+#import "MFEventTapHandle.h"
 #import "HelperUtility.h"
 #import "GestureScrollSimulator.h"
 #import "Mac_Mouse_Fix_Helper-Swift.h"
@@ -27,31 +27,13 @@
 /// - Why switch away from old method? - Under Ventura I think the HID callback API broke for some devices. See https://github.com/noah-nuebling/mac-mouse-fix/issues/424. I remember similar bugs in the API in older macOS versions a few years back.
 /// - Some time after moving to the newMethod I deleted the old method. You can still find it in ButtonInputReceiver_old.m and in the the MMF 1 and MMF 2 source. We might have moved away from it under MMF 2 as well to fix Ventura problems, not sure. 
 
-static CFMachPortRef _eventTap;
-static CFRunLoopSourceRef _eventTapSource;
-static BOOL _eventTapShouldBeEnabled;
+static MFEventTapHandle *_eventTapHandle;
 static BOOL registerInputCallback(void);
 static CGEventRef eventTapCallback(CGEventTapProxy proxy, CGEventType type, CGEventRef event, void *userInfo);
 
 static BOOL setEventTapEnabled(BOOL enabled, const char *reason) {
-    _eventTapShouldBeEnabled = enabled;
-    NSString *operation = enabled ? @"enable" : @"disable";
     NSString *logReason = reason ? [NSString stringWithUTF8String:reason] : @"unknown";
-
-    if (_eventTap == NULL) {
-        DDLogError("ButtonInputReceiver: can't %@ event tap because it was not created. reason=%@", operation, logReason);
-        return NO;
-    }
-
-    if (CGEventTapIsEnabled(_eventTap) == enabled) return YES;
-
-    CGEventTapEnable(_eventTap, enabled);
-    if (CGEventTapIsEnabled(_eventTap) != enabled) {
-        DDLogError("ButtonInputReceiver: failed to %@ event tap. reason=%@", operation, logReason);
-        return NO;
-    }
-
-    return YES;
+    return [_eventTapHandle setEnabled:enabled reason:logReason];
 }
 
 + (void)load_Manual {
@@ -60,7 +42,7 @@ static BOOL setEventTapEnabled(BOOL enabled, const char *reason) {
 }
 
 + (void)start {
-    if (_eventTap == NULL && !registerInputCallback()) return;
+    if (_eventTapHandle == nil && !registerInputCallback()) return;
     setEventTapEnabled(YES, "start");
 }
 + (void)stop {
@@ -68,11 +50,11 @@ static BOOL setEventTapEnabled(BOOL enabled, const char *reason) {
 }
 + (BOOL)isRunning {
     /// Only used for debug inspection at the time of writing. Shouldn't need it for anything else.
-    return _eventTap != NULL && CGEventTapIsEnabled(_eventTap);
+    return _eventTapHandle.enabled;
 }
 
 static BOOL registerInputCallback(void) {
-    if (_eventTap != NULL) return YES;
+    if (_eventTapHandle != nil) return YES;
     
     ///
     /// Register event Tap Callback
@@ -88,37 +70,18 @@ static BOOL registerInputCallback(void) {
 //    | CGEventMaskBit(kCGEventRightMouseDown) | CGEventMaskBit(kCGEventRightMouseUp);
 
     /// Create tap
-    CFMachPortRef eventTap = CGEventTapCreate(kCGHIDEventTap, kCGHeadInsertEventTap, kCGEventTapOptionDefault, mask, eventTapCallback, NULL);
-    if (eventTap == NULL) {
-        DDLogError("ButtonInputReceiver: failed to create event tap. Check Accessibility permission before retrying.");
-        return NO;
-    }
-    
-    /// Get source
-    CFRunLoopSourceRef runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, eventTap, 0);
-    if (runLoopSource == NULL) {
-        DDLogError("ButtonInputReceiver: failed to create event-tap run-loop source.");
-        CFRelease(eventTap);
-        return NO;
-    }
-
-    CGEventTapEnable(eventTap, false);
-    
     /// Add to runLoop
     ///     Running on `GlobalEventTapThread`. Used to run on main. We made this change as a hotfix to the StatusBarItem only reacting to mouseHover if you click and then move mouse outside of the menu and then back in.
     ///     This might have unforseen consequences. E.g. the stuff we call from the tap must dispatch to mainThread at some points, so this changes the threading model, and might introduce raceConditions
     ///     Edit: Yes this is causing race conditions. The click and drag gestures get stuck all the time now. Alternative solution: Run on main thread and just don't capture MB1.
 
-    CFRunLoopAddSource(/* GlobalEventTapThread.runLoop */ CFRunLoopGetMain(), runLoopSource, kCFRunLoopDefaultMode);
-
-    _eventTap = eventTap;
-    _eventTapSource = runLoopSource;
-    return YES;
+    _eventTapHandle = [MFEventTapHandle handleWithLocation:kCGHIDEventTap mask:mask options:kCGEventTapOptionDefault placement:kCGHeadInsertEventTap callback:eventTapCallback runLoop:CFRunLoopGetMain() mode:kCFRunLoopDefaultMode label:@"ButtonInputReceiver"];
+    return _eventTapHandle != nil;
 }
 
 + (void)shutdown {
-    _eventTapShouldBeEnabled = NO;
-    [ModificationUtility invalidateEventTap:&_eventTap source:&_eventTapSource runLoop:CFRunLoopGetMain() mode:kCFRunLoopDefaultMode];
+    [_eventTapHandle invalidate];
+    _eventTapHandle = nil;
 }
 
 NSArray *_buttonParseBlacklist; /// Don't send inputs from these buttons to ButtonInputParser
@@ -132,7 +95,7 @@ static CGEventRef eventTapCallback(CGEventTapProxy proxy, CGEventType type, CGEv
         
         DDLogDebug("ButtonInputReceiver eventTap was disabled by %@", type == kCGEventTapDisabledByTimeout ? @"timeout. Re-enabling." : @"user input.");
         
-        if (type == kCGEventTapDisabledByTimeout && _eventTapShouldBeEnabled) {
+        if (type == kCGEventTapDisabledByTimeout && _eventTapHandle.desiredEnabled) {
             setEventTapEnabled(YES, "eventTapDisabledByTimeout");
         }
         return event;

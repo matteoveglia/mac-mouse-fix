@@ -171,9 +171,9 @@ Acceptance tests:
 
 Relevant prior art is [#1920](https://github.com/noah-nuebling/mac-mouse-fix/pull/1920), [#1936](https://github.com/noah-nuebling/mac-mouse-fix/pull/1936), [#1938](https://github.com/noah-nuebling/mac-mouse-fix/pull/1938), and [#1950](https://github.com/noah-nuebling/mac-mouse-fix/pull/1950). [#1924](https://github.com/noah-nuebling/mac-mouse-fix/pull/1924) adds an extra retain whose ownership contract is not established; treat it as a comparison, not code to copy. The raw serialization approaches in [#1895](https://github.com/noah-nuebling/mac-mouse-fix/pull/1895) and [#1918](https://github.com/noah-nuebling/mac-mouse-fix/pull/1918) are reference material only.
 
-### WP2 — event-tap lifecycle and helper stability (P0 guards and shutdown teardown implemented; runtime matrix pending)
+### WP2 — event-tap lifecycle and helper stability (owned lifecycle implemented; runtime matrix pending)
 
-Audit and then centralize the lifecycle of every event tap. The audit must include `Helper/Core/ModificationUtility.m`, `Helper/Core/Buttons/ButtonInputReceiver.m`, `Helper/Core/Scroll/Scroll.m`, `Helper/Core/PointerFreeze.m`, `Helper/Core/GlobalEventTapThread.m`, and any switch/master input path.
+Audit and then centralize the lifecycle of every event tap. The audit includes `Helper/Utility/ModificationUtility.m`, `Helper/Core/Buttons/ButtonInputReceiver.m`, `Helper/Core/Scroll/Scroll.m`, `Helper/Utility/PointerFreeze.m`, `Helper/Utility/GlobalEventTapThread.m`, and the switch/master input paths.
 
 - Completed in the current increment: `Scroll`, `ButtonInputReceiver`, `Modifiers`, `ModifiedDrag`, `PointerFreeze`, `KeyCaptureMode`, and `ModificationUtility` reject failed tap/source creation, avoid `CGEventTapIsEnabled`/`CGEventTapEnable` on null taps, and do not re-enable after a caller has requested stop. New taps are disabled before their run-loop source is attached.
 - Completed in the follow-up increment: the helper now admits only health-check, Accessibility-check, and termination messages until all post-Accessibility modules are initialized; configuration, device, remap, and event-tap commands are rejected during the startup gap.
@@ -185,7 +185,10 @@ Audit and then centralize the lifecycle of every event tap. The audit must inclu
 - Verified after that change in the signed Debug app: the active helper was disabled through the live General-tab toggle; the UI disabled its Buttons and Scrolling tabs, and the ServiceManagement job and helper process were absent afterward.
 - Completed in the UI-completion increment: the asynchronous helper-registration callback now returns to the main queue before General-tab controllers can update AppKit state, timers, or failure toasts.
 - Completed in the pointer-freeze increment: a failed tap enable restores the default global cursor-suppression interval, timeout recovery and normal unfreeze now serialize on the pointer queue, a failed timeout recovery explicitly unfreezes the pointer, and helper teardown restores the real cursor/removes the puppet cursor if disable interrupts a drag.
-- Remaining: unify event-tap state in a single owned handle and serialize each tap owner's non-termination lifecycle operations.
+- Completed in the owned-lifecycle increment: `MFEventTapHandle` now owns tap creation, the run-loop source, desired state, idempotent enable/disable, timeout recovery state, and one-time teardown. `Scroll`, `ButtonInputReceiver`, `Modifiers`, `ModifiedDrag`, `PointerFreeze`, and `KeyCaptureMode` use the handle on their existing main/global run loops and no longer query or enable raw taps from their caller queues.
+- Deterministic fake-backend tests cover tap/source creation failure, inert creation, idempotent enable, refused enable, late-enable rejection, stable teardown order, and exactly-once release. Debug, Release, and the existing Tests target build successfully with Xcode 27 after the migration.
+- Runtime-verified in the signed lifecycle build: rapid disable/enable cycling, quit/reopen, shortcut capture, normal buttons and scrolling, and modified-drag teardown all passed without a stuck or hidden pointer.
+- Remaining runtime work: exercise forced timeout recovery, permission revocation/regrant, sleep/wake, fast-user switching, and a longer click/scroll soak.
 - Treat a null tap, invalid Mach port, or missing run-loop source as a recoverable state with structured logging, not as a valid tap.
 - Make enable/disable/re-enable idempotent and serialized. Remove sources before releasing taps; never re-enable a tap after ownership has ended.
 - Handle Accessibility/TCC denial, revocation, fast user switching, sleep/wake, and helper registration failure with a retry/back-off path and an accurate menu-bar state.

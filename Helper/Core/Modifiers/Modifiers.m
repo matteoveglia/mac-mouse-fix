@@ -15,7 +15,7 @@
 #import "ModifiedDrag.h"
 #import "DeviceManager.h"
 #import "SharedUtility.h"
-#import "ModificationUtility.h"
+#import "MFEventTapHandle.h"
 #import <os/signpost.h>
 #import "Mac_Mouse_Fix_Helper-Swift.h"
 
@@ -49,27 +49,11 @@
 static NSMutableDictionary *_modifiers;
 static MFModifierPriority _kbModPriority;
 static MFModifierPriority _btnModPriority;
-static CFMachPortRef _kbModEventTap;
-static CFRunLoopSourceRef _kbModEventTapSource;
+static MFEventTapHandle *_kbModEventTapHandle;
 
 static BOOL setKeyboardModifierEventTapEnabled(BOOL enabled, const char *reason) {
-    NSString *operation = enabled ? @"enable" : @"disable";
     NSString *logReason = reason ? [NSString stringWithUTF8String:reason] : @"unknown";
-
-    if (_kbModEventTap == NULL) {
-        DDLogError("Modifiers: can't %@ keyboard modifier event tap because it was not created. reason=%@", operation, logReason);
-        return NO;
-    }
-
-    if (CGEventTapIsEnabled(_kbModEventTap) == enabled) return YES;
-
-    CGEventTapEnable(_kbModEventTap, enabled);
-    if (CGEventTapIsEnabled(_kbModEventTap) != enabled) {
-        DDLogError("Modifiers: failed to %@ keyboard modifier event tap. reason=%@", operation, logReason);
-        return NO;
-    }
-
-    return YES;
+    return [_kbModEventTapHandle setEnabled:enabled reason:logReason];
 }
 
 #pragma mark - Load
@@ -86,23 +70,7 @@ static BOOL setKeyboardModifierEventTapEnabled(BOOL enabled, const char *reason)
         
         /// Create keyboard modifier event tap
         CGEventMask mask = CGEventMaskBit(kCGEventFlagsChanged);
-        CFMachPortRef eventTap = CGEventTapCreate(kCGHIDEventTap, kCGHeadInsertEventTap, kCGEventTapOptionListenOnly, mask, kbModsChanged, NULL);
-        if (eventTap == NULL) {
-            DDLogError("Modifiers: failed to create keyboard modifier event tap. Check Accessibility permission before retrying.");
-            return;
-        }
-
-        CFRunLoopSourceRef runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, eventTap, 0);
-        if (runLoopSource == NULL) {
-            DDLogError("Modifiers: failed to create keyboard modifier event-tap run-loop source.");
-            CFRelease(eventTap);
-            return;
-        }
-
-        CGEventTapEnable(eventTap, false);
-        CFRunLoopAddSource(CFRunLoopGetCurrent(), runLoopSource, kCFRunLoopDefaultMode);
-        _kbModEventTap = eventTap;
-        _kbModEventTapSource = runLoopSource;
+        _kbModEventTapHandle = [MFEventTapHandle handleWithLocation:kCGHIDEventTap mask:mask options:kCGEventTapOptionListenOnly placement:kCGHeadInsertEventTap callback:kbModsChanged runLoop:CFRunLoopGetMain() mode:kCFRunLoopDefaultMode label:@"Modifiers"];
         
 //        /// Enable/Disable eventTap based on Remap.remaps
 //        CGEventTapEnable(_kbModEventTap, false); /// Disable eventTap first (Might prevent `_keyboardModifierEventTap` from always being called twice - Nope doesn't make a difference)
@@ -122,7 +90,8 @@ static BOOL setKeyboardModifierEventTapEnabled(BOOL enabled, const char *reason)
 }
 
 + (void)shutdown {
-    [ModificationUtility invalidateEventTap:&_kbModEventTap source:&_kbModEventTapSource runLoop:CFRunLoopGetMain() mode:kCFRunLoopDefaultMode];
+    [_kbModEventTapHandle invalidate];
+    _kbModEventTapHandle = nil;
 }
 
 #pragma mark Toggle listening

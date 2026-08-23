@@ -38,7 +38,7 @@ jobs:
             echo "macOS 27 SDK is not installed on this hosted runner; the Dock-swipe harness is covered by the documented local Xcode 27 build."
           fi
 
-      - name: Run deterministic P1 tests
+      - name: Run deterministic remediation tests
         run: |
           xcrun swiftc \
             -DAPPLICATION_POLICY_SELF_TEST_MAIN \
@@ -69,6 +69,19 @@ jobs:
             Tests/HIDPP/MFHIDPPSmokeTests.m \
             -o "$RUNNER_TEMP/hidpp-fixture-tests"
           "$RUNNER_TEMP/hidpp-fixture-tests"
+
+          xcrun clang \
+            -fobjc-arc \
+            -fblocks \
+            -framework Foundation \
+            -framework CoreGraphics \
+            -Werror \
+            -Wno-unused-parameter \
+            -I Helper/Utility \
+            Helper/Utility/MFEventTapHandle.m \
+            Tests/MFEventTapHandleTests.m \
+            -o "$RUNNER_TEMP/event-tap-handle-tests"
+          "$RUNNER_TEMP/event-tap-handle-tests"
 
       - name: Prepare disposable build source
         run: ditto "$GITHUB_WORKSPACE" "$RUNNER_TEMP/source"

@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		C0D302030000000000000003 /* MFEventTapHandle.m in Sources */ = {isa = PBXBuildFile; fileRef = C0D302020000000000000002 /* MFEventTapHandle.m */; };
 		4F0438152E59F08200368E60 /* Old MFDisplayLinkWorkType stuff.md in Resources */ = {isa = PBXBuildFile; fileRef = 4F0438142E59F08200368E60 /* Old MFDisplayLinkWorkType stuff.md */; };
 		4F0438162E59F08200368E60 /* Old MFDisplayLinkWorkType stuff.md in Resources */ = {isa = PBXBuildFile; fileRef = 4F0438142E59F08200368E60 /* Old MFDisplayLinkWorkType stuff.md */; };
 		4F09283F28B8101600BDC2FF /* TrialSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F09283E28B8101600BDC2FF /* TrialSection.swift */; };
@@ -477,6 +478,8 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		C0D302010000000000000001 /* MFEventTapHandle.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = MFEventTapHandle.h; sourceTree = "<group>"; };
+		C0D302020000000000000002 /* MFEventTapHandle.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = MFEventTapHandle.m; sourceTree = "<group>"; };
 		4F0028012C58303B00CDB9D0 /* LocalizationScreenshotTakerTestPlan.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; name = LocalizationScreenshotTakerTestPlan.xctestplan; path = LocalizationScreenshotTaker/LocalizationScreenshotTakerTestPlan.xctestplan; sourceTree = SOURCE_ROOT; };
 		4F02C71C2899448900ED0AA8 /* OutputCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutputCoordinator.swift; sourceTree = "<group>"; };
 		4F02C7202899453200ED0AA8 /* OutputCoordinator.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = OutputCoordinator.h; sourceTree = "<group>"; };
@@ -7795,6 +7798,8 @@
 		4FF6663F25F2C93A00689B77 /* Utility */ = {
 			isa = PBXGroup;
 			children = (
+				C0D302010000000000000001 /* MFEventTapHandle.h */,
+				C0D302020000000000000002 /* MFEventTapHandle.m */,
 				4FF6664525F2C93A00689B77 /* ModificationUtility.h */,
 				4FF6664225F2C93A00689B77 /* ModificationUtility.m */,
 				4FF0255D27B013A100923107 /* PointerFreeze.h */,
@@ -8589,6 +8594,7 @@
 				4F428D092CD8C688006322AB /* MFCoding.swift in Sources */,
 				4FFA4E3E28B7AA250062A1FE /* NotificationLabel.m in Sources */,
 				4FF6669A25F2C93A00689B77 /* ModificationUtility.m in Sources */,
+				C0D302030000000000000003 /* MFEventTapHandle.m in Sources */,
 				4FF6669D25F2C93A00689B77 /* AccessibilityCheck.m in Sources */,
 				4F85C05128BBDBDC00E96E9C /* NSImageView+Extensions.swift in Sources */,
 				4FA13FC428B3A2E0005C68FC /* TrialNotificationController.swift in Sources */,

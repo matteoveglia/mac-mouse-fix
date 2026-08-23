@@ -26,6 +26,8 @@ jobs:
         run: |
           xcode-select -p
           xcodebuild -version
+          xcodebuild -showsdks
+          xcodebuild -showsdks | grep -Fq 'macOS 27.0'
 
       - name: Prepare disposable build source
         run: ditto "$GITHUB_WORKSPACE" "$RUNNER_TEMP/source"

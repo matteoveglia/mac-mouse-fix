@@ -119,6 +119,7 @@ class ScrollTabController: NSViewController {
 
     private var trackpadScopeRow: NSStackView?
     private var trackpadScopeRowHeightConstraint: NSLayoutConstraint?
+    private var speedDivider: NSView?
     private var trackpadAppsEditorWindow: NSWindow?
     private var trackpadAppsTableView: NSTableView?
     private let trackpadAppsTableDataSource = TrackpadAppsTableDataSource()
@@ -174,7 +175,7 @@ class ScrollTabController: NSViewController {
         scopeSelectionRow.spacing = 10
         scopeSelectionRow.distribution = .fill
 
-        let compactScopeRow = NSStackView(views: [scopeSelectionRow, trackpadAppsButton])
+        let compactScopeRow = CollapsingStackView(views: [scopeSelectionRow, trackpadAppsButton])
         compactScopeRow.orientation = .vertical
         compactScopeRow.alignment = .trailing
         compactScopeRow.spacing = 8
@@ -201,9 +202,19 @@ class ScrollTabController: NSViewController {
         let apps = configuredTrackpadApps()
         let isRestricted = scope != "all"
 
-        trackpadAppsButton.isHidden = !isRestricted
         trackpadAppsButton.isEnabled = isRestricted
-        trackpadScopeRowHeightConstraint?.constant = isRestricted ? 59 : 31
+        let targetHeight: CGFloat = isRestricted ? 59 : 31
+        if let constraint = trackpadScopeRowHeightConstraint, constraint.constant != targetHeight {
+            if trackpadScopeRow?.window != nil {
+                NSAnimationContext.runAnimationGroup { context in
+                    context.duration = 0.25
+                    context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+                    constraint.animator().constant = targetHeight
+                }
+            } else {
+                constraint.constant = targetHeight
+            }
+        }
         trackpadAppsTableDataSource.bundleIDs = apps
         trackpadAppsTableView?.reloadData()
     }
@@ -386,6 +397,27 @@ class ScrollTabController: NSViewController {
         masterStack.removeArrangedSubview(smoothnessSection)
         let dividerIndex = masterStack.arrangedSubviews.firstIndex(of: generalDivider) ?? 0
         masterStack.insertArrangedSubview(smoothnessSection, at: dividerIndex + 1)
+
+        guard speedDivider == nil,
+              let smoothnessIndex = masterStack.arrangedSubviews.firstIndex(of: smoothnessSection) else { return }
+
+        let divider = NSView()
+        divider.translatesAutoresizingMaskIntoConstraints = false
+        let separator = NSBox()
+        separator.boxType = .separator
+        separator.translatesAutoresizingMaskIntoConstraints = false
+        divider.addSubview(separator)
+        NSLayoutConstraint.activate([
+            divider.heightAnchor.constraint(equalToConstant: 17),
+            separator.leadingAnchor.constraint(equalTo: divider.leadingAnchor),
+            separator.trailingAnchor.constraint(equalTo: divider.trailingAnchor),
+            separator.topAnchor.constraint(equalTo: divider.topAnchor, constant: 8),
+            separator.bottomAnchor.constraint(equalTo: divider.bottomAnchor, constant: -8),
+        ])
+
+        masterStack.insertArrangedSubview(divider, at: smoothnessIndex + 1)
+        divider.widthAnchor.constraint(equalTo: masterStack.widthAnchor).isActive = true
+        speedDivider = divider
     }
 
     /// Did appear
@@ -472,6 +504,7 @@ class ScrollTabController: NSViewController {
             identifier!.rawValue
         })
         trackpadScopePicker.reactive.selectedIdentifier <~ trackpadScope.producer.map({ NSUserInterfaceItemIdentifier($0) })
+        trackpadAppsButton.reactive.isCollapsed <~ trackpadScope.producer.map({ $0 == "all" })
         trackpadScope.producer.startWithValues { [weak self] _ in
             self?.updateTrackpadAppsUI()
         }

@@ -160,7 +160,14 @@ static BOOL setPointerFreezeEventTapEnabled(BOOL enabled, const char *reason) {
         setSuppressionInterval(kMFEventSuppressionIntervalForStoppingCursor);
         
         /// Enable eventTap
-        if (!setPointerFreezeEventTapEnabled(YES, "freeze")) return;
+        if (!setPointerFreezeEventTapEnabled(YES, "freeze")) {
+            /// Nothing has been hidden or warped yet, but setting the
+            /// suppression interval above changes global cursor behavior.
+            /// Restore it before returning so a failed tap cannot leave the
+            /// pointer feeling frozen.
+            setSuppressionInterval(kMFEventSuppressionIntervalDefault);
+            return;
+        }
         
         if (keepPointerMoving) {
             
@@ -197,7 +204,10 @@ CGEventRef _Nullable mouseMovedCallback(CGEventTapProxy proxy, CGEventType type,
         
         if (type == kCGEventTapDisabledByTimeout && _eventTapShouldBeEnabled) {
 //            assert(false); /// Not sure this ever times out
-            setPointerFreezeEventTapEnabled(YES, "eventTapDisabledByTimeout");
+            if (!setPointerFreezeEventTapEnabled(YES, "eventTapDisabledByTimeout")) {
+                _eventTapShouldBeEnabled = NO;
+                [PointerFreeze unfreeze];
+            }
         } else if (type == kCGEventTapDisabledByUserInput) {
             _eventTapShouldBeEnabled = NO;
             _coolEventTapIsEnabled = false;

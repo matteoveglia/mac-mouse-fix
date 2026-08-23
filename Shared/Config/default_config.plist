@@ -23,6 +23,13 @@
 		<string>all</string>
 		<key>trackpadSimulationApps</key>
 		<array/>
+		<key>applicationPolicy</key>
+		<dict>
+			<key>defaultEffect</key>
+			<string>allow</string>
+			<key>rules</key>
+			<array/>
+		</dict>
 		<key>precise</key>
 		<false/>
 		<key>smooth</key>
@@ -89,7 +96,7 @@
 	<key>Constants</key>
 	<dict>
 		<key>configVersion</key>
-		<integer>25</integer>
+		<integer>26</integer>
 		<key>defaultRemaps</key>
 		<dict>
 			<key>threeButtons</key>

@@ -54,7 +54,7 @@ import Cocoa
         /// - All the property values are cached in `currentConfig`, because the properties are lazy. Replacing with a fresh object deletes this implicit cache.
         /// - TODO: Make a copy before storing in `_scrollConfigRaw` just to be sure the equality checks always work
         shared = ScrollConfig()
-        _scrollConfigRaw = newConfigRaw
+        _scrollConfigRaw = newConfigRaw?.copy() as? NSDictionary
         cache = nil
 //        ReactiveScrollConfig.shared.handleScrollConfigChanged(newValue: shared)
         SwitchMaster.shared.scrollConfigChanged(scrollConfig: shared)
@@ -73,14 +73,14 @@ import Cocoa
     
     // MARK: Overrides
     
-    @objc static func scrollConfig(modifiers: MFScrollModificationResult, inputAxis: MFAxis, display: CGDirectDisplayID, appBundleIdentifier: String?) -> ScrollConfig {
+    @objc static func scrollConfig(modifiers: MFScrollModificationResult, inputAxis: MFAxis, display: CGDirectDisplayID, applicationIdentity: ApplicationIdentity?) -> ScrollConfig {
         
         /// Try to get result from cache
         
         if cache == nil {
             cache = .init()
         }
-        let trackpadSimulation = shared.trackpadSimulationEnabled(forAppBundleIdentifier: appBundleIdentifier)
+        let trackpadSimulation = shared.trackpadSimulationEnabled(for: applicationIdentity)
         let key = CacheKey(modifiers: modifiers, inputAxis: inputAxis, display: display, trackpadSimulation: trackpadSimulation)
         
         if let fromCache = cache![key] {
@@ -255,24 +255,23 @@ import Cocoa
     /// Resolve Trackpad Simulation for the application under the pointer.
     /// Missing scope data uses the original all-apps behavior so older
     /// configurations continue to work before the app has migrated them.
-    private func trackpadSimulationEnabled(forAppBundleIdentifier appBundleIdentifier: String?) -> Bool {
+    private func trackpadSimulationEnabled(for applicationIdentity: ApplicationIdentity?) -> Bool {
         guard (c("trackpadSimulation") as? Bool) == true else { return false }
 
-        let scope = (c("trackpadSimulationScope") as? String) ?? "all"
-        let appBundleIDs = (c("trackpadSimulationApps") as? NSArray)?.compactMap({ $0 as? String }) ?? []
-
-        switch scope {
-        case "include":
-            guard let appBundleIdentifier else { return false }
-            return appBundleIDs.contains(appBundleIdentifier)
-        case "exclude":
-            guard let appBundleIdentifier else { return true }
-            return !appBundleIDs.contains(appBundleIdentifier)
-        case "all":
-            return true
-        default:
-            return true
+        let snapshot: ApplicationPolicySnapshot?
+        if let dictionary = c("applicationPolicy") as? NSDictionary {
+            snapshot = ApplicationPolicySnapshot.snapshotFromDictionary(dictionary)
+        } else {
+            let scope = (c("trackpadSimulationScope") as? String) ?? "all"
+            let appBundleIDs = (c("trackpadSimulationApps") as? NSArray) ?? []
+            snapshot = ApplicationPolicySnapshot.snapshotFromLegacyScope(scope, applications: appBundleIDs)
         }
+
+        /// Invalid policy data fails closed for include-style behavior rather
+        /// than silently enabling Trackpad Simulation in every application.
+        guard let snapshot else { return false }
+        guard let applicationIdentity else { return snapshot.defaultEffect == .allow }
+        return snapshot.isEnabled(for: applicationIdentity)
     }
 
     /// `shared.copy()` eagerly copies many lazy derived properties. Apply the

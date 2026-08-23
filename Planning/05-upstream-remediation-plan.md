@@ -2,7 +2,7 @@
 
 Date: 2026-08-23
 Scope: `noah-nuebling/mac-mouse-fix` upstream and this revival fork
-Status: active plan; fork PR #1 merged the scrolling/configuration baseline, and this document supersedes `03-backlog-triage.md` and `04-roadmap.md` where they conflict
+Status: active plan; fork PR #1 merged the scrolling/configuration baseline, fork PR #2 carries the P0 compatibility series, and `codex/remediation-p1` carries the first P1 architecture increments. This document supersedes `03-backlog-triage.md` and `04-roadmap.md` where they conflict.
 
 ## Executive decision
 
@@ -221,6 +221,8 @@ Treat [#1710](https://github.com/noah-nuebling/mac-mouse-fix/pull/1710), [#1856]
 4. Do not add generated `.build`/DerivedData artifacts, a large hidapi subtree, or unrelated drag effects to the first device PR.
 5. Verify click, click-drag, and click-scroll for buttons 4/5; cover wireless reconnect and Logi Options/other vendor software interactions.
 
+Current implementation: `Shared/Devices/HIDPP` now contains a deliberately transport-agnostic HID++ frame and request lifecycle core. It strictly accepts only 7-byte `0x10` and 20-byte `0x11` reports, owns immutable request identities, permits one in-flight request, and defines deterministic timeout, cancellation, disconnect, stop, and late-response behavior. The production helper compiles the parser/client only; the fixture transport is test-only and cannot write to hardware. Synthetic fixtures exercise short/long reports and lifecycle races in CI. This completes the safe protocol foundation, not model support: no Logitech product is claimed supported until real captures identify the required features and a reviewed IOKit transport passes the physical-device matrix.
+
 ### WP5 — per-application policy and configuration
 
 Finish the active fork feature separately from this compatibility series, then compare it with [#1865](https://github.com/noah-nuebling/mac-mouse-fix/pull/1865). Reimplement the desired behavior rather than importing its polluted branch.
@@ -232,9 +234,13 @@ Finish the active fork feature separately from this compatibility series, then c
 - Keep policy decisions in the app/config layer; the helper should receive a validated immutable snapshot and a clear update boundary.
 - Test a missing/uninstalled app, multiple matching processes, app relaunch, full-screen apps, iPhone Mirroring, and permission denial.
 
+Current implementation: config version 26 adds a bounded immutable application-policy snapshot with exact bundle-ID, executable-path, wrapper-bundle, wrapper-path, and controlled process-name selectors. Matching precedence is bundle ID, executable path, wrapper metadata, then process name; process-name fallback is only eligible when no stable identity is available. Legacy `all`/`include`/`exclude` data migrates losslessly to the canonical schema, malformed data fails closed, and the current bundle-list UI keeps canonical and legacy values synchronized. When a richer policy exists, that UI updates the default and bundle-ID subset while preserving advanced selectors instead of silently ignoring the user's change or flattening the whole policy. Scroll policy is captured at the start of a consecutive scroll series, so changing the application under the pointer does not change behavior halfway through a gesture. Deterministic tests cover precedence, validation, migration, round-trip encoding, and fallback behavior. Direct graphical authoring of path/wrapper/process selectors and the physical Java/iPhone-Mirroring/full-screen matrix remain follow-up UX/runtime gates; the current UI intentionally continues to author bundle-ID rules.
+
 ### WP6 — actions, gesture semantics, and UX
 
 After P0/P1 reliability, implement small features one at a time. Momentum arrest, gaming-mode toggle, directional scroll controls, and new button actions should each have a state-machine test and a way to cancel safely. Window movement/resize, rotate/zoom, media/brightness, and timeline scrubbing require app compatibility tests and should not be bundled together. The existing click-cycle hold/level-expiry timers now verify that the original device and button still own the active cycle before firing; a release or replacement cycle is treated as cancellation rather than a force-unwrapped crash or a stale action.
+
+- Completed in the P1 architecture increment: click-cycle hold and level-expiry callbacks carry generation and ownership tokens. Release, device replacement, expiration, and repeated teardown invalidate stale timers; teardown is idempotent and no callback force-unwraps vanished state. A deterministic reducer suite covers stale hold/expiry callbacks, release, replacement cycles, and repeated cancellation. `forceKill()` remains outside this increment because it has no established production contract.
 
 - Completed in the current increment: settings-tab resize transitions are interruptible. A click during the window's spring-resize now cancels the previous timer and frame animation, restores its temporary constraints, and selects the requested tab instead of discarding the click. Signed Debug App and unsigned `Tests` harness builds pass; the launched Debug app switches General and About with one click in each direction. Rapid physical clicking remains part of the manual UX matrix.
 

@@ -57,11 +57,14 @@ fileprivate enum ButtonPressState {
 fileprivate struct ClickCycleState: Hashable {
     var device: Device
     var button: ButtonNumber
+    var generation: UInt64
     var pressState: ButtonPressState
     var clickLevel: ClickLevel
 //    var isAlive: Bool { clickLevel > 0 }
     var downTimer = Timer()
     var upTimer = Timer()
+    var holdToken: UInt64? = nil
+    var expiryToken: UInt64? = nil
 }
 typealias ReleaseCallbackKey = ButtonNumber
 
@@ -76,10 +79,12 @@ class ClickCycle: NSObject {
     
     /// State
     fileprivate var state: ClickCycleState? = nil
+    private var tokenCounter: UInt64 = 0
     func kill() {
+        guard let activeState = state else { return }
         DDLogDebug("triggerCallback - kill")
-        state?.downTimer.invalidate()
-        state?.upTimer.invalidate()
+        activeState.downTimer.invalidate()
+        activeState.upTimer.invalidate()
         state = nil
     }
     func forceKill() {
@@ -137,29 +142,42 @@ class ClickCycle: NSObject {
             /// Gather state
             let cycleIsDead = (state == nil)
             var buttonIsDifferent = false
-            if !cycleIsDead { /// Note (Sep 2024): I think only calculating buttonIsDifferent when !cycleIsDead is an optimization, but not sure.
-                buttonIsDifferent = button != state!.button || device != state!.device
+            if let activeState = state { /// Note (Sep 2024): I think only calculating buttonIsDifferent when !cycleIsDead is an optimization, but not sure.
+                buttonIsDifferent = button != activeState.button || device != activeState.device
             }
             
             /// Restart cycle
             if cycleIsDead || buttonIsDifferent {
                 kill()
-                state = ClickCycleState(device: device, button: button, pressState: .down, clickLevel: 0)
+                state = ClickCycleState(device: device, button: button, generation: nextToken(), pressState: .down, clickLevel: 0)
+            } else if var activeState = state {
+                /// A repeated down starts a new timer generation for this cycle.
+                activeState.downTimer.invalidate()
+                activeState.upTimer.invalidate()
+                activeState.generation = nextToken()
+                activeState.holdToken = nil
+                activeState.expiryToken = nil
+                activeState.pressState = .down
+                state = activeState
             }
             
             /// Update cycle
             ///     [May 22 2025] intCycle is buggy! This code probably relies on the bug. TODO: Fix.
-            state!.clickLevel = Math.intCycle(x: state!.clickLevel + 1, lower: 1, upper: maxClickLevel)
+            guard var activeState = state else { return }
+            activeState.clickLevel = Math.intCycle(x: activeState.clickLevel + 1, lower: 1, upper: maxClickLevel)
+            state = activeState
         }
         
         /// Guard: NOT release outside of clickCycle it belongs to
-        let lonelyRelease = !mouseDown && (state == nil || state!.device != device || state!.button != button)
+        let lonelyRelease = !mouseDown && (state == nil || state?.device != device || state?.button != button)
         
         if !lonelyRelease {
             
+            guard let activeState = state else { return }
+            let cycleGeneration = activeState.generation
             
             /// Check: release after being held for an extended time
-            let releaseFromHold = !mouseDown && state?.pressState == .held
+            let releaseFromHold = !mouseDown && activeState.pressState == .held
             
             ///
             /// triggerCallback
@@ -167,26 +185,28 @@ class ClickCycle: NSObject {
             
             if mouseDown {
                 var c: [UnconditionalReleaseCallback] = []
-                triggerCallback(.press, state!.clickLevel, device, button, &c)
+                triggerCallback(.press, activeState.clickLevel, device, button, &c)
                 if !c.isEmpty {
                     releaseCallbacks[button, default: []].append(contentsOf: c)
                 }
             } else { /// mouseUp
                 let trigger: ClickCycleTriggerPhase = releaseFromHold ? .releaseFromHold : .release
-                callTriggerCallback(triggerCallback, trigger, state!.clickLevel, device, button)
+                callTriggerCallback(triggerCallback, trigger, activeState.clickLevel, device, button)
             }
             
             /// Kill after releaseFromHold
             if releaseFromHold {
-                kill()
+                if isCurrent(generation: cycleGeneration, device: device, button: button) {
+                    kill()
+                }
                 return
             }
         
             /// Check active clickCycle
             ///     (triggerCallback could've killed it)
-            ///     \note: Sometimes there are raceconditions, and the state only becomes nil after this statement. That's why we simply use `state?` below instead of `state!`
+            ///     \note: Sometimes there are raceconditions, and the state only becomes nil after this statement. That's why we use guarded state access below.
             
-            if state == nil { return }
+            guard isCurrent(generation: cycleGeneration, device: device, button: button) else { return }
             
             ///
             /// Start/reset timers
@@ -206,7 +226,7 @@ class ClickCycle: NSObject {
             /// ```
             /// Discussion: (last updated: Sep 2024)
             /// - The helper build number was 22854 which matches with the 3.0.3 release.
-            /// - I assume this was due to the forceful optional unwrapping of `self.state!` failing in the `scheduledTimer` callbacks below.
+            /// - I assume this was due to a forceful state unwrap failing in the `scheduledTimer` callbacks below.
             ///     - We set `self.state` to nil regularly whenever we call `self.kill()`, however this should also invalidate the timers, which should prevent them from firing and executing the code that crashed, so I think there must be a race condition or other error.
             ///         Thoughts on where the error could come from:
             ///             - `self.kill()` is invoked by all the other input handling code (modified drag, modified scroll, and keyboardModifier handling I think), I believe that not all of those run on the main thread.
@@ -216,7 +236,7 @@ class ClickCycle: NSObject {
             ///                 (NSTimer docs say that timers need to be invalidated from the same thread on which they are started, and I don't think we're always doing that)
             ///             - Sidenote: I think we wrote the ClickCycle file basically just not trying to make it thread safe, since for other parts of the app we meticulously made everything thread safe using DispatchQueues, but then that lead to months of debugging deadlocks and stuff like that. So with ClickCycle I just thought
             ///                    'what if I don't use locks to make this thread safe and instead I just try to make it still work fine in case there are race conditions - also, race conditions should be rare anyways, since user input is generally spaced out in time.'
-            ///                    IIRC I used this approach for Mac Mouse Fix 1 and 2, since I didn't even know what 'thread safe' meant at that point. And it has also worked quite well for ClickCycle so far, with this being the first crash I see - but using force unwrapping (the ! operator) on `state!` is sort of a mistake under that design philosophy, since it crashes when there's a race condition instead of smoothly recovering.
+            ///                    IIRC I used this approach for Mac Mouse Fix 1 and 2, since I didn't even know what 'thread safe' meant at that point. And it has also worked quite well for ClickCycle so far, with this being the first crash I see - but force unwrapping state is sort of a mistake under that design philosophy, since it crashes when there's a race condition instead of smoothly recovering.
             ///         Solution ideas:
             ///            1. Move all input processing to a single, dedicated thread (I want to do this anyways.)
             ///                 - My understanding of the current threading situation: (Sep 2024) we process buttonInputs partially on the mainThread and partially on the 'buttonQueue', other inputProcessing modules such as the modifiedDrag also interact with this module by triggering `ClickCycle.kill()`. modifiedDrag runs on the `GlobalEventTapThread`, but then also dispatches to a special `_drag.queue`, which I don't currently understand the purpose of. So it's really a bit all-over-the-place, and the `NSTimer.invalidate()` method inside `ClickCycle.kill()` is probably not always being called from the same thread, which could cause problems according to the docs.
@@ -228,18 +248,23 @@ class ClickCycle: NSObject {
             assert(Thread.isMainThread)
             
             SharedUtilitySwift.doOnMain {
-                
+                guard self.isCurrent(generation: cycleGeneration, device: device, button: button) else { return }
+
                 if mouseDown {
                     /// mouseDown
-                    state?.upTimer.invalidate()
-                    state?.downTimer = CoolTimer.scheduledTimer(timeInterval: 0.25, repeats: false, block: { timer in
+                    guard var activeState = self.state else { return }
+                    activeState.downTimer.invalidate()
+                    activeState.upTimer.invalidate()
+                    let holdToken = self.nextToken()
+                    let expiryToken = self.nextToken()
+                    activeState.holdToken = holdToken
+                    activeState.expiryToken = expiryToken
+                    self.state = activeState
+
+                    let downTimer = CoolTimer.scheduledTimer(timeInterval: 0.25, repeats: false, block: { timer in
                         self.buttonQueue.async {
-                            /// The timer can fire after a release or a different button has
-                            /// replaced this cycle. Never run a stale callback against the
-                            /// current cycle's state.
-                            guard let activeState = self.state,
-                                  activeState.device == device,
-                                  activeState.button == button
+                            guard self.isCurrentHold(generation: cycleGeneration, token: holdToken, device: device, button: button),
+                                  let activeState = self.state
                             else { return }
 
                             /// Callback
@@ -249,28 +274,46 @@ class ClickCycle: NSObject {
                                 self.releaseCallbacks[button, default: []].append(contentsOf: c)
                             }
                             /// Update state
-                            guard let stateAfterCallback = self.state,
-                                  stateAfterCallback.device == device,
-                                  stateAfterCallback.button == button
+                            guard var stateAfterCallback = self.state,
+                                  self.isCurrentHold(generation: cycleGeneration, token: holdToken, device: device, button: button)
                             else { return }
-                            self.state?.pressState = .held
+                            stateAfterCallback.pressState = .held
+                            stateAfterCallback.holdToken = nil
+                            stateAfterCallback.expiryToken = nil
                             stateAfterCallback.upTimer.invalidate()
+                            self.state = stateAfterCallback
                         }
                     })
                     /// Not sure whether to start started upTimer on mouseDown or up
-                    state?.upTimer = CoolTimer.scheduledTimer(timeInterval: 0.26, repeats: false, block: { timer in
+                    let upTimer = CoolTimer.scheduledTimer(timeInterval: 0.26, repeats: false, block: { timer in
                         self.buttonQueue.async {
-                            guard let activeState = self.state,
-                                  activeState.device == device,
-                                  activeState.button == button
+                            guard self.isCurrentExpiry(generation: cycleGeneration, token: expiryToken, device: device, button: button),
+                                  let activeState = self.state
                             else { return }
                             self.callTriggerCallback(triggerCallback, ClickCycleTriggerPhase.levelExpired, activeState.clickLevel, device, button)
-                            self.kill()
+                            if self.isCurrentExpiry(generation: cycleGeneration, token: expiryToken, device: device, button: button) {
+                                self.kill()
+                            }
                         }
                     })
+                    guard self.isCurrent(generation: cycleGeneration, device: device, button: button) else {
+                        downTimer.invalidate()
+                        upTimer.invalidate()
+                        return
+                    }
+                    guard var stateAfterTimers = self.state else { return }
+                    stateAfterTimers.downTimer = downTimer
+                    stateAfterTimers.upTimer = upTimer
+                    self.state = stateAfterTimers
                 } else {
                     /// mouseUp
-                    state?.downTimer.invalidate()
+                    guard var activeState = self.state,
+                          self.isCurrent(generation: cycleGeneration, device: device, button: button)
+                    else { return }
+                    activeState.downTimer.invalidate()
+                    activeState.holdToken = nil
+                    activeState.pressState = .up
+                    self.state = activeState
                 }
             }
             
@@ -278,6 +321,32 @@ class ClickCycle: NSObject {
     }
     
     /// Helper
+
+    private func nextToken() -> UInt64 {
+        tokenCounter &+= 1
+        return tokenCounter
+    }
+
+    private func isCurrent(generation: UInt64, device: Device, button: ButtonNumber) -> Bool {
+        guard let activeState = state else { return false }
+        return activeState.generation == generation &&
+            activeState.device == device &&
+            activeState.button == button
+    }
+
+    private func isCurrentHold(generation: UInt64, token: UInt64, device: Device, button: ButtonNumber) -> Bool {
+        guard isCurrent(generation: generation, device: device, button: button),
+              let activeState = state
+        else { return false }
+        return activeState.holdToken == token && activeState.pressState == .down
+    }
+
+    private func isCurrentExpiry(generation: UInt64, token: UInt64, device: Device, button: ButtonNumber) -> Bool {
+        guard isCurrent(generation: generation, device: device, button: button),
+              let activeState = state
+        else { return false }
+        return activeState.expiryToken == token
+    }
     
     private func callTriggerCallback(_ triggerCallback: ClickCycleTriggerCallback, _ trigger: ClickCycleTriggerPhase, _ clickLevel: ClickLevel, _ device: Device, _ button: ButtonNumber) {
         /// Convenience function - Calls triggerCallback and ignores the last `releaseCallback` argument

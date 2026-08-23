@@ -197,6 +197,33 @@ class ScrollTabController: NSViewController {
         return (config("Scroll.trackpadSimulationApps") as? NSArray)?.compactMap({ $0 as? String }) ?? []
     }
 
+    @discardableResult
+    private func updateApplicationPolicyInConfig() -> Bool {
+        let scope = trackpadScope.get() ?? "all"
+        let applications = NSArray(array: configuredTrackpadApps())
+        guard let snapshot = ApplicationPolicySnapshot.snapshotFromLegacyScope(scope, applications: applications) else {
+            return false
+        }
+        var snapshotToStore = snapshot
+        if let current = config("Scroll.applicationPolicy") as? NSDictionary {
+            /// The current editor owns the default and bundle-ID rule subset.
+            /// Preserve advanced selectors authored by a newer UI or an
+            /// administrator while still making this UI's changes effective.
+            if let currentSnapshot = ApplicationPolicySnapshot.snapshotFromDictionary(current), currentSnapshot.legacyScope == nil {
+                let advancedRules = currentSnapshot.rules.filter({ $0.matchKind != .bundleIdentifier })
+                guard let merged = ApplicationPolicySnapshot(defaultEffect: snapshot.defaultEffect,
+                                                             rules: snapshot.rules + advancedRules) else {
+                    return false
+                }
+                snapshotToStore = merged
+            }
+        }
+        let encoded = snapshotToStore.dictionaryRepresentation
+        if let current = config("Scroll.applicationPolicy") as? NSDictionary, current.isEqual(encoded) { return false }
+        setConfig("Scroll.applicationPolicy", encoded)
+        return true
+    }
+
     private func updateTrackpadAppsUI() {
         let scope = trackpadScope.get() ?? "all"
         let apps = configuredTrackpadApps()
@@ -221,6 +248,7 @@ class ScrollTabController: NSViewController {
 
     private func saveTrackpadApps(_ bundleIDs: [String]) {
         setConfig("Scroll.trackpadSimulationApps", NSArray(array: bundleIDs))
+        _ = updateApplicationPolicyInConfig()
         commitConfig()
         updateTrackpadAppsUI()
     }
@@ -462,7 +490,11 @@ class ScrollTabController: NSViewController {
         trackpadScopePicker.reactive.selectedIdentifier <~ trackpadScope.producer.map({ NSUserInterfaceItemIdentifier($0) })
         trackpadAppsButton.reactive.isCollapsed <~ trackpadScope.producer.map({ $0 == "all" })
         trackpadScope.producer.startWithValues { [weak self] _ in
-            self?.updateTrackpadAppsUI()
+            guard let self else { return }
+            if self.updateApplicationPolicyInConfig() {
+                commitConfig()
+            }
+            self.updateTrackpadAppsUI()
         }
         updateTrackpadAppsUI()
         

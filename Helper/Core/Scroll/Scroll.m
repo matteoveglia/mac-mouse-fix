@@ -513,8 +513,9 @@ static void heavyProcessing(CGEventRef event, int64_t scrollDeltaAxis1, int64_t 
         [HelperUtility displayUnderMousePointer:&displayID withEvent:event];
         
         /// Get scrollConfig
-        NSString *appBundleIdentifier = [HelperUtility appUnderMousePointerWithEvent:event].bundleIdentifier;
-        _scrollConfig = [ScrollConfig scrollConfigWithModifiers:newMods inputAxis:inputAxis display:displayID appBundleIdentifier:appBundleIdentifier];
+        NSRunningApplication *application = [HelperUtility appUnderMousePointerWithEvent:event];
+        MFApplicationIdentity *applicationIdentity = application == nil ? nil : [[MFApplicationIdentity alloc] initWithRunningApplication:application];
+        _scrollConfig = [ScrollConfig scrollConfigWithModifiers:newMods inputAxis:inputAxis display:displayID applicationIdentity:applicationIdentity];
         
     } /// End `if (firstConsecutive) {`
     

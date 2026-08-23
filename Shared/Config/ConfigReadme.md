@@ -9,6 +9,12 @@
 
 Here, we document, what exactly changed as we increased the configVersion
 
+**25 -> 26**
+
+- Added the canonical `Scroll.applicationPolicy` snapshot used by the helper at scroll-series boundaries.
+- Migrated the existing `all`/`include`/`exclude` scope and bundle-ID list without removing those legacy keys from the current settings UI.
+- Invalid explicitly stored legacy policy values migrate to a deny-by-default snapshot instead of enabling Trackpad Simulation globally.
+
 **24 -> 25**
 
 - Split the legacy shared `Scroll.smooth` and `Scroll.speed` values into vertical and horizontal settings, preserving the user's existing values for both axes.

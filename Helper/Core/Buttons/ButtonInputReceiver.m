@@ -28,6 +28,7 @@
 /// - Some time after moving to the newMethod I deleted the old method. You can still find it in ButtonInputReceiver_old.m and in the the MMF 1 and MMF 2 source. We might have moved away from it under MMF 2 as well to fix Ventura problems, not sure. 
 
 static CFMachPortRef _eventTap;
+static CFRunLoopSourceRef _eventTapSource;
 static BOOL _eventTapShouldBeEnabled;
 static BOOL registerInputCallback(void);
 static CGEventRef eventTapCallback(CGEventTapProxy proxy, CGEventType type, CGEventRef event, void *userInfo);
@@ -110,9 +111,14 @@ static BOOL registerInputCallback(void) {
 
     CFRunLoopAddSource(/* GlobalEventTapThread.runLoop */ CFRunLoopGetMain(), runLoopSource, kCFRunLoopDefaultMode);
 
-    CFRelease(runLoopSource);
     _eventTap = eventTap;
+    _eventTapSource = runLoopSource;
     return YES;
+}
+
++ (void)shutdown {
+    _eventTapShouldBeEnabled = NO;
+    [ModificationUtility invalidateEventTap:&_eventTap source:&_eventTapSource runLoop:CFRunLoopGetMain() mode:kCFRunLoopDefaultMode];
 }
 
 NSArray *_buttonParseBlacklist; /// Don't send inputs from these buttons to ButtonInputParser

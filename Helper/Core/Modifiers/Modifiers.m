@@ -50,6 +50,7 @@ static NSMutableDictionary *_modifiers;
 static MFModifierPriority _kbModPriority;
 static MFModifierPriority _btnModPriority;
 static CFMachPortRef _kbModEventTap;
+static CFRunLoopSourceRef _kbModEventTapSource;
 
 static BOOL setKeyboardModifierEventTapEnabled(BOOL enabled, const char *reason) {
     NSString *operation = enabled ? @"enable" : @"disable";
@@ -100,8 +101,8 @@ static BOOL setKeyboardModifierEventTapEnabled(BOOL enabled, const char *reason)
 
         CGEventTapEnable(eventTap, false);
         CFRunLoopAddSource(CFRunLoopGetCurrent(), runLoopSource, kCFRunLoopDefaultMode);
-        CFRelease(runLoopSource);
         _kbModEventTap = eventTap;
+        _kbModEventTapSource = runLoopSource;
         
 //        /// Enable/Disable eventTap based on Remap.remaps
 //        CGEventTapEnable(_kbModEventTap, false); /// Disable eventTap first (Might prevent `_keyboardModifierEventTap` from always being called twice - Nope doesn't make a difference)
@@ -118,6 +119,10 @@ static BOOL setKeyboardModifierEventTapEnabled(BOOL enabled, const char *reason)
 //            toggleModifierListening(Remap.remaps);
 //        }];
     }
+}
+
++ (void)shutdown {
+    [ModificationUtility invalidateEventTap:&_kbModEventTap source:&_kbModEventTapSource runLoop:CFRunLoopGetMain() mode:kCFRunLoopDefaultMode];
 }
 
 #pragma mark Toggle listening

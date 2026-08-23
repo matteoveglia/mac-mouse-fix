@@ -21,6 +21,7 @@ NS_ASSUME_NONNULL_BEGIN
 + (void)startReceiving;
 + (void)stopReceiving;
 + (BOOL)isReceiving;
++ (void)shutdown;
 
 + (void)resetState;
 //+ (void)suspend;

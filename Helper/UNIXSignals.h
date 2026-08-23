@@ -15,6 +15,9 @@ NS_ASSUME_NONNULL_BEGIN
 
 + (void)load_Manual;
 
+/// Runs event-tap cleanup on each tap's owning run loop before process termination.
++ (void)prepareForTerminationWithTimeout:(NSTimeInterval)timeout;
+
 @end
 
 NS_ASSUME_NONNULL_END

@@ -21,6 +21,7 @@
 
 
 CFMachPortRef _keyCaptureEventTap;
+static CFRunLoopSourceRef _keyCaptureEventTapSource;
 static BOOL _keyCaptureModeEnabled;
 
 + (void)enable {
@@ -28,7 +29,7 @@ static BOOL _keyCaptureModeEnabled;
     DDLogInfo("Enabling keyCaptureMode");
     
     if (_keyCaptureEventTap == nil) {
-        _keyCaptureEventTap = [ModificationUtility createEventTapWithLocation:kCGHIDEventTap mask:CGEventMaskBit(kCGEventKeyDown) | CGEventMaskBit(NSEventTypeSystemDefined) option:kCGEventTapOptionDefault placement:kCGHeadInsertEventTap callback:keyCaptureModeCallback];
+        _keyCaptureEventTap = [ModificationUtility createEventTapWithLocation:kCGHIDEventTap mask:CGEventMaskBit(kCGEventKeyDown) | CGEventMaskBit(NSEventTypeSystemDefined) option:kCGEventTapOptionDefault placement:kCGHeadInsertEventTap callback:keyCaptureModeCallback runLoop:CFRunLoopGetMain() source:&_keyCaptureEventTapSource];
     }
     if (_keyCaptureEventTap == NULL) {
         DDLogError("KeyCaptureMode: can't enable key capture because its event tap was not created.");
@@ -44,6 +45,11 @@ static BOOL _keyCaptureModeEnabled;
     _keyCaptureModeEnabled = NO;
     if (_keyCaptureEventTap == NULL) return;
     CGEventTapEnable(_keyCaptureEventTap, false);
+}
+
++ (void)shutdown {
+    _keyCaptureModeEnabled = NO;
+    [ModificationUtility invalidateEventTap:&_keyCaptureEventTap source:&_keyCaptureEventTapSource runLoop:CFRunLoopGetMain() mode:kCFRunLoopCommonModes];
 }
 
 CGEventRef  _Nullable keyCaptureModeCallback(CGEventTapProxy proxy, CGEventType type, CGEventRef event, void *userInfo) {

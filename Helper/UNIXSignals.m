@@ -10,6 +10,13 @@
 #import "UNIXSignals.h"
 #import <signal.h>
 #import "DeviceManager.h"
+#import "ButtonInputReceiver.h"
+#import "Scroll.h"
+#import "Modifiers.h"
+#import "KeyCaptureMode.h"
+#import "PointerFreeze.h"
+#import "ModifiedDrag.h"
+#import "GlobalEventTapThread.h"
 
 @implementation UNIXSignals
 
@@ -173,6 +180,8 @@ static void termination_signal_handler(int the_signal) {
     /// Do cleanup
     ///
     
+    [UNIXSignals prepareForTerminationWithTimeout:0.25];
+
     /// Deconfigure Devices
     ///     Discussion:
     ///     - Sep 2024: Right now, this resets tweaks to the IOKitDriver. Later, this might also reset the onboard memory of the attached mice.
@@ -234,6 +243,41 @@ static void termination_signal_handler(int the_signal) {
         perror("raise() returned an error inside the termination_signal_handler.");
         assert(false);
         exit(0);
+    }
+}
+
++ (void)prepareForTerminationWithTimeout:(NSTimeInterval)timeout {
+    /// The launchd termination signal is delivered on a background queue. Event-tap
+    /// sources must instead be removed by the run loop on which they were installed.
+    void (^shutdownMainRunLoopTaps)(void) = ^{
+        [ButtonInputReceiver shutdown];
+        [Scroll shutdown];
+        [Modifiers shutdown];
+        [KeyCaptureMode shutdown];
+    };
+
+    BOOL mainRunLoopCompleted = YES;
+    if (NSThread.isMainThread) {
+        shutdownMainRunLoopTaps();
+    } else {
+        dispatch_semaphore_t completed = dispatch_semaphore_create(0);
+        dispatch_async(dispatch_get_main_queue(), ^{
+            shutdownMainRunLoopTaps();
+            dispatch_semaphore_signal(completed);
+        });
+        int64_t nanoseconds = (int64_t)(MAX(timeout, 0.0) * NSEC_PER_SEC);
+        mainRunLoopCompleted = dispatch_semaphore_wait(completed, dispatch_time(DISPATCH_TIME_NOW, nanoseconds)) == 0;
+    }
+    if (!mainRunLoopCompleted) {
+        NSLog(@"UNIXSignals.m: main-run-loop event-tap teardown did not finish before termination.");
+    }
+
+    BOOL globalRunLoopCompleted = [GlobalEventTapThread performBlockAndWait:^{
+        [PointerFreeze shutdown];
+        [ModifiedDrag shutdown];
+    } timeout:timeout];
+    if (!globalRunLoopCompleted) {
+        NSLog(@"UNIXSignals.m: global event-tap teardown did not finish before termination.");
     }
 }
 

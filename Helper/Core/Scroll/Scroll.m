@@ -42,6 +42,7 @@
 #pragma mark - Variables - static
 
 static CFMachPortRef _eventTap;
+static CFRunLoopSourceRef _eventTapSource;
 static CGEventSourceRef _eventSource;
 static BOOL _eventTapShouldBeEnabled;
 static CGEventRef eventTapCallback(CGEventTapProxy proxy, CGEventType type, CGEventRef event, void *userInfo);
@@ -81,9 +82,9 @@ static BOOL createScrollEventTap(void) {
 
     /// Scroll interception is controlled by SwitchMaster, so keep a newly-created tap disabled until startReceiving.
     CGEventTapEnable(eventTap, false);
-    _eventTap = eventTap;
     CFRunLoopAddSource(CFRunLoopGetCurrent(), runLoopSource, kCFRunLoopCommonModes);
-    CFRelease(runLoopSource);
+    _eventTap = eventTap;
+    _eventTapSource = runLoopSource;
 
     DDLogInfo("Scroll.m: created scroll event tap");
     return YES;
@@ -216,6 +217,11 @@ void resetState_Unsafe(void) {
     /// - Also see notes for `- startReceiving`
     
     setScrollEventTapEnabled(NO, "stopReceiving");
+}
+
++ (void)shutdown {
+    _eventTapShouldBeEnabled = NO;
+    [ModificationUtility invalidateEventTap:&_eventTap source:&_eventTapSource runLoop:CFRunLoopGetMain() mode:kCFRunLoopCommonModes];
 }
 
 + (BOOL)isReceiving {

@@ -79,6 +79,7 @@ typedef struct {
 + (void)activationStateWithCallback:(void (^)(MFModifiedInputActivationState))callback;
 
 + (void)load_Manual;
++ (void)shutdown;
 
 //+ (NSDictionary *)initialModifiers;
 //+ (CGEventTapProxy)tapProxy;

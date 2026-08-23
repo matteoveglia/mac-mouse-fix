@@ -45,6 +45,7 @@ typedef enum {
 + (void)start;
 + (void)stop;
 + (BOOL)isRunning;
++ (void)shutdown;
 
 //+ (void)decide;
 

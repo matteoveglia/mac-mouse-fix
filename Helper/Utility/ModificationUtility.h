@@ -34,6 +34,22 @@ BOOL directionChanged(MFDirection direction1, MFDirection direction2);
                                    callback:(CGEventTapCallBack _Nullable)callback
                                     runLoop:(CFRunLoopRef _Nullable)runLoop;
 
+/// Creates an inert event tap and, optionally, hands ownership of its run-loop source to the caller.
+/// Keep the source alive until `invalidateEventTap:source:runLoop:mode:` runs on that same run loop.
++ (CFMachPortRef _Nullable)createEventTapWithLocation:(CGEventTapLocation)location
+                                       mask:(CGEventMask)mask
+                                     option:(CGEventTapOptions)option
+                                  placement:(CGEventTapPlacement)placement
+                                   callback:(CGEventTapCallBack _Nullable)callback
+                                    runLoop:(CFRunLoopRef _Nullable)runLoop
+                                     source:(CFRunLoopSourceRef _Nullable * _Nullable)source;
+
+/// Must be called on the run loop which owns `source`.
++ (void)invalidateEventTap:(CFMachPortRef _Nullable * _Nonnull)eventTap
+                    source:(CFRunLoopSourceRef _Nullable * _Nonnull)source
+                   runLoop:(CFRunLoopRef _Nullable)runLoop
+                      mode:(CFRunLoopMode)mode;
+
 + (void)makeCursorSettable;
 
 + (void)hideMousePointer:(BOOL)B;

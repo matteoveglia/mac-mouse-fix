@@ -37,6 +37,7 @@ static NSImageView *_puppetCursorView;
 static CGDirectDisplayID _display;
 
 static CFMachPortRef _eventTap;
+static CFRunLoopSourceRef _eventTapSource;
 static Boolean _coolEventTapIsEnabled; /// CGEventTapIsEnabled() is pretty slow, so we're using this instead
 static BOOL _eventTapShouldBeEnabled;
 
@@ -101,11 +102,17 @@ static BOOL setPointerFreezeEventTapEnabled(BOOL enabled, const char *reason) {
         
         /// Setup eventTap
         ///     Using a listenOnly tap would be more appropriate but they sometimes behave weirdly
-        _eventTap = [ModificationUtility createEventTapWithLocation:kCGHIDEventTap mask:CGEventMaskBit(kCGEventMouseMoved) | CGEventMaskBit(kCGEventLeftMouseDragged) | CGEventMaskBit(kCGEventRightMouseDragged) | CGEventMaskBit(kCGEventOtherMouseDragged) option:kCGEventTapOptionDefault placement:kCGHeadInsertEventTap callback:mouseMovedCallback runLoop:GlobalEventTapThread.runLoop];
+        _eventTap = [ModificationUtility createEventTapWithLocation:kCGHIDEventTap mask:CGEventMaskBit(kCGEventMouseMoved) | CGEventMaskBit(kCGEventLeftMouseDragged) | CGEventMaskBit(kCGEventRightMouseDragged) | CGEventMaskBit(kCGEventOtherMouseDragged) option:kCGEventTapOptionDefault placement:kCGHeadInsertEventTap callback:mouseMovedCallback runLoop:GlobalEventTapThread.runLoop source:&_eventTapSource];
         if (_eventTap == NULL) {
             DDLogError("PointerFreeze: event tap is unavailable until creation succeeds.");
         }
     }
+}
+
++ (void)shutdown {
+    _eventTapShouldBeEnabled = NO;
+    _coolEventTapIsEnabled = false;
+    [ModificationUtility invalidateEventTap:&_eventTap source:&_eventTapSource runLoop:GlobalEventTapThread.runLoop mode:kCFRunLoopCommonModes];
 }
 
 // MARK: Interface

@@ -15,6 +15,8 @@ NS_ASSUME_NONNULL_BEGIN
 @interface GlobalEventTapThread : NSObject
 
 + (CFRunLoopRef)runLoop;
++ (BOOL)isInitialized;
++ (BOOL)performBlockAndWait:(dispatch_block_t)block timeout:(NSTimeInterval)timeout;
 
 @end
 

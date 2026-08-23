@@ -571,6 +571,29 @@ NSDictionary *_Nullable _readDictPlist(NSURL *url, bool mutable, NSError * __aut
                     removeFromConfig(@"License.licenseReasonCache");
                     
                     currentVersion = 24;
+
+                } else if (currentVersion == 24) {
+
+                    /// 24 -> 25
+                    ///     Split shared scroll speed/smoothness into per-axis settings and add the app-scoped trackpad-simulation defaults.
+
+                    log(Info, "Upgrading configVersion from 24 to 25...");
+
+                    NSObject *legacySmooth = config(@"Scroll.smooth") ?: [defaultConfig objectForCoolKeyPath:@"Scroll.smooth"];
+                    NSObject *legacySpeed = config(@"Scroll.speed") ?: [defaultConfig objectForCoolKeyPath:@"Scroll.speed"];
+
+                    if (!config(@"Scroll.verticalSmooth"))   setConfig(@"Scroll.verticalSmooth", legacySmooth);
+                    if (!config(@"Scroll.horizontalSmooth")) setConfig(@"Scroll.horizontalSmooth", legacySmooth);
+                    if (!config(@"Scroll.verticalSpeed"))    setConfig(@"Scroll.verticalSpeed", legacySpeed);
+                    if (!config(@"Scroll.horizontalSpeed"))  setConfig(@"Scroll.horizontalSpeed", legacySpeed);
+
+                    if (!config(@"Scroll.trackpadSimulationScope")) setConfig(@"Scroll.trackpadSimulationScope", @"all");
+                    if (!config(@"Scroll.trackpadSimulationApps"))  setConfig(@"Scroll.trackpadSimulationApps", @[]);
+
+                    /// This experimental setting was intentionally dropped before the fork's scrolling work merged.
+                    removeFromConfig(@"Scroll.horizontalScale");
+
+                    currentVersion = 25;
                     
                 } else {
                     

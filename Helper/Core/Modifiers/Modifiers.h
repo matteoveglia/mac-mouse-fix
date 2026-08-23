@@ -41,6 +41,7 @@ typedef enum {
 } MFModifierPriority;
 
 + (void)load_Manual;
++ (void)shutdown;
 
 //+ (NSDictionary *)getActiveModifiersForDevice:(Device *)device event:(CGEventRef _Nullable) event;
 

@@ -9,6 +9,12 @@
 
 Here, we document, what exactly changed as we increased the configVersion
 
+**24 -> 25**
+
+- Split the legacy shared `Scroll.smooth` and `Scroll.speed` values into vertical and horizontal settings, preserving the user's existing values for both axes.
+- Added the `Scroll.trackpadSimulationScope` (`all`) and `Scroll.trackpadSimulationApps` (empty) defaults.
+- Removed the experimental `Scroll.horizontalScale` setting, which was not included in the final scrolling implementation.
+
 **21 -> 22**
 
 - "License.trial.lastUseDate" is now stored in `SecureStorage` instead of config. 

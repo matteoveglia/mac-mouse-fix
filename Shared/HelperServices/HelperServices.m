@@ -77,6 +77,18 @@
 
 @implementation HelperServices
 
+/// ServiceManagement registration is process-global state. Keep changes in
+/// submission order so a fast enable/disable sequence cannot race on a global
+/// concurrent queue and leave the helper registered opposite to the UI.
+static dispatch_queue_t helperServiceOperationQueue(void) {
+    static dispatch_queue_t queue;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        queue = dispatch_queue_create("com.nuebling.mac-mouse-fix.helper-service", DISPATCH_QUEUE_SERIAL);
+    });
+    return queue;
+}
+
 #pragma mark - Interface...
 ///
 ///
@@ -156,7 +168,7 @@
     
     if (@available(macOS 13.0, *)) {
         
-        dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INTERACTIVE, 0), ^{
+        dispatch_async(helperServiceOperationQueue(), ^{
                 
             /// Cleanup
             ///     Remove residue & prevent interference
@@ -185,6 +197,15 @@
             /// Enable helper 
             ///     Do this on some global queue. Xcode complains if you do this on mainThread because it can lead to unresponsive UI.
             NSError *error = [self enableHelper_SM: enable];
+
+            /// `SMAppService -unregisterAndReturnError:` removes the login-item
+            /// registration, but does not consistently terminate an already-running
+            /// agent on current macOS releases. Ask the remaining helper instance to
+            /// terminate only after unregistering succeeded; its SIGTERM path restores
+            /// input handling before exit.
+            if (!enable && error == nil) {
+                [HelperServices terminateAllHelperInstances];
+            }
             
             /// Call onComplete
             if (onComplete != nil) onComplete(error);
@@ -416,6 +437,18 @@ static BOOL helperIsActive_PList(void) {
         ///         (When you restart the computer after emptying the trash that usually fixes things, so we didn't check that case for errors. Also when you restart the computer while the copy is still in the trash then the restart doesn't seem to change anything, so we also didn't test that case.)
         
         SMAppService *service = [SMAppService agentServiceWithPlistName:@"sm_launchd.plist"];
+
+        /// Disabling must be idempotent. System Settings can already have
+        /// disabled the service while a previously launched helper is still
+        /// winding down. In that case, `unregisterAndReturnError:` reports an
+        /// error even though the requested registration state has been reached.
+        /// Return success so the caller can reflect the off state and terminate
+        /// any remaining helper process below.
+        if (!enable && service.status != SMAppServiceStatusEnabled) {
+            NSLog(@"Helper service is already disabled (status: %ld).", (long)service.status);
+            return nil;
+        }
+
         if (enable) {
             BOOL success = [service registerAndReturnError:&error];
             if (!success){

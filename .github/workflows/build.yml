@@ -1,0 +1,91 @@
+name: Build macOS app
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-build-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - name: Verify Xcode
+        run: |
+          xcode-select -p
+          xcodebuild -version
+          xcodebuild -showsdks
+
+      - name: Detect macOS 27 SDK
+        id: macos27
+        run: |
+          if xcodebuild -showsdks | grep -Fq 'macOS 27.0'; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "macOS 27 SDK is not installed on this hosted runner; the Dock-swipe harness is covered by the documented local Xcode 27 build."
+          fi
+
+      - name: Prepare disposable build source
+        run: ditto "$GITHUB_WORKSPACE" "$RUNNER_TEMP/source"
+
+      - name: Build app and helper
+        working-directory: ${{ runner.temp }}/source
+        run: |
+          xcodebuild \
+            -project "Mouse Fix.xcodeproj" \
+            -scheme App \
+            -configuration Debug \
+            -sdk macosx \
+            -destination 'platform=macOS' \
+            -derivedDataPath "$RUNNER_TEMP/DerivedData" \
+            -clonedSourcePackagesDirPath "$RUNNER_TEMP/SourcePackages" \
+            -onlyUsePackageVersionsFromResolvedFile \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO
+
+      - name: Build release app and helper
+        working-directory: ${{ runner.temp }}/source
+        run: |
+          xcodebuild \
+            -project "Mouse Fix.xcodeproj" \
+            -scheme App \
+            -configuration Release \
+            -sdk macosx \
+            -destination 'platform=macOS' \
+            -derivedDataPath "$RUNNER_TEMP/DerivedData" \
+            -clonedSourcePackagesDirPath "$RUNNER_TEMP/SourcePackages" \
+            -onlyUsePackageVersionsFromResolvedFile \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO
+
+      - name: Compile Dock-swipe harness
+        if: steps.macos27.outputs.available == 'true'
+        working-directory: ${{ runner.temp }}/source
+        run: |
+          xcodebuild \
+            -project "Mouse Fix.xcodeproj" \
+            -scheme Tests \
+            -configuration Debug \
+            -sdk macosx \
+            -destination 'platform=macOS' \
+            -derivedDataPath "$RUNNER_TEMP/DerivedData" \
+            -clonedSourcePackagesDirPath "$RUNNER_TEMP/SourcePackages" \
+            -onlyUsePackageVersionsFromResolvedFile \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO
+
+      - name: Verify checkout was not modified by builds
+        run: git -C "$GITHUB_WORKSPACE" diff --exit-code -- App/SupportFiles/Info.plist Helper/SupportFiles/Info.plist

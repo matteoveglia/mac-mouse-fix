@@ -15,6 +15,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 + (void)enable;
 + (void)disable;
++ (void)shutdown;
 
 @end
 

@@ -234,22 +234,37 @@ class ClickCycle: NSObject {
                     state?.upTimer.invalidate()
                     state?.downTimer = CoolTimer.scheduledTimer(timeInterval: 0.25, repeats: false, block: { timer in
                         self.buttonQueue.async {
+                            /// The timer can fire after a release or a different button has
+                            /// replaced this cycle. Never run a stale callback against the
+                            /// current cycle's state.
+                            guard let activeState = self.state,
+                                  activeState.device == device,
+                                  activeState.button == button
+                            else { return }
+
                             /// Callback
                             var c: [UnconditionalReleaseCallback] = []
-                            triggerCallback(.hold, self.state!.clickLevel, device, button, &c)
+                            triggerCallback(.hold, activeState.clickLevel, device, button, &c)
                             if !c.isEmpty {
                                 self.releaseCallbacks[button, default: []].append(contentsOf: c)
                             }
                             /// Update state
+                            guard let stateAfterCallback = self.state,
+                                  stateAfterCallback.device == device,
+                                  stateAfterCallback.button == button
+                            else { return }
                             self.state?.pressState = .held
-                            self.state?.upTimer.invalidate()
+                            stateAfterCallback.upTimer.invalidate()
                         }
                     })
                     /// Not sure whether to start started upTimer on mouseDown or up
                     state?.upTimer = CoolTimer.scheduledTimer(timeInterval: 0.26, repeats: false, block: { timer in
                         self.buttonQueue.async {
-                            if self.state == nil { return } /// Guard race conditions. Not totally sure why this happens.
-                            self.callTriggerCallback(triggerCallback, ClickCycleTriggerPhase.levelExpired, self.state!.clickLevel, device, button)
+                            guard let activeState = self.state,
+                                  activeState.device == device,
+                                  activeState.button == button
+                            else { return }
+                            self.callTriggerCallback(triggerCallback, ClickCycleTriggerPhase.levelExpired, activeState.clickLevel, device, button)
                             self.kill()
                         }
                     })

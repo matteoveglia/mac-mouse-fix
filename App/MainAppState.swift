@@ -112,15 +112,28 @@ import ReactiveSwift
     
     @objc func enable(onComplete: ((NSError?) -> Void)?) {
         HelperServices.enableHelperAsUserAgent(true) { swiftError in
-            onComplete?(swiftError as NSError?) /// Swift converts the NSError that `.enableHelperAsUserAgent` returns to it's onComplete arg to some weird abstract Swift error, so we have to cast it back here. Swift is sooooo annoying I swear to god.
+            /// ServiceManagement runs on a background queue. Its completion is
+            /// consumed by AppKit controllers, so deliver it on the main queue
+            /// just like the disable path below.
+            DispatchQueue.main.async {
+                onComplete?(swiftError as NSError?) /// Swift converts the NSError that `.enableHelperAsUserAgent` returns to it's onComplete arg to some weird abstract Swift error, so we have to cast it back here. Swift is sooooo annoying I swear to god.
+            }
         }
     }
     @objc func disable() {
-        
-        /// What happens if we call `enableHelperAsUserAgent(false, ...` directly? Will it break things?
-        
-        HelperServices.enableHelperAsUserAgent(false, onComplete: nil)
-        observer.send(value: false)
+        disable(onComplete: { _ in })
+    }
+
+    func disable(onComplete: @escaping (NSError?) -> Void) {
+        HelperServices.enableHelperAsUserAgent(false) { swiftError in
+            let error = swiftError as NSError?
+            DispatchQueue.main.async {
+                if error == nil {
+                    self.observer.send(value: false)
+                }
+                onComplete(error)
+            }
+        }
     }
     func isEnabled() -> Bool { // TODO: Think about returning `latest` here or renaming the `isEnabled_Uncached`
         HelperServices.helperIsActive()

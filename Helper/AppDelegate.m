@@ -9,6 +9,7 @@
 
 #import "AppDelegate.h"
 #import "DeviceManager.h"
+#import "UNIXSignals.h"
 
 @interface AppDelegate ()
 @property (strong) IBOutlet NSWindow *addedWindow;
@@ -21,8 +22,9 @@
 }
 
 - (void)applicationWillTerminate:(NSNotification *)notification {
-    /// This doesn't seem to get called when the Helper is terminated through launchd.
-    /// Instead we catch the `SIGTERM` UNIX signal.
+    /// This does not run when launchd terminates the helper, so UNIXSignals covers
+    /// that path as well. The teardown is idempotent if both paths are observed.
+    [UNIXSignals prepareForTerminationWithTimeout:0.25];
 }
 
 @end

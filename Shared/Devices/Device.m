@@ -439,7 +439,10 @@ static uint64_t IOHIDDeviceGetRegistryID(IOHIDDeviceRef  _Nonnull device) {
 }
 
 - (NSNumber *)uniqueID {
-    return 0;
+    /// `0` as an Objective-C pointer is nil, which makes synthetic button
+    /// events lose their click-cycle identity when bridged into Swift. Keep a
+    /// stable non-nil placeholder for the singleton virtual device instead.
+    return @0;
 }
 
 - (BOOL)isEqualToDevice:(Device *)device {

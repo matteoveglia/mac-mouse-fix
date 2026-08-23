@@ -14,6 +14,7 @@ maintained in `matteoveglia/mac-mouse-fix` (fork of `noah-nuebling/mac-mouse-fix
 | [03-backlog-triage.md](03-backlog-triage.md) | Triage of the 1185 open issues and 27 open PRs |
 | [04-roadmap.md](04-roadmap.md) | Phased execution plan + immediate next actions |
 | [05-upstream-remediation-plan.md](05-upstream-remediation-plan.md) | Full upstream issue/PR remediation plan, corrected technical baseline, and release gates |
+| [test-matrix.md](test-matrix.md) | Current automated evidence and required physical-hardware regression checks |
 
 ## TL;DR
 

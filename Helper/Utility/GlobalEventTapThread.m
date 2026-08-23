@@ -101,13 +101,13 @@ static NSCondition *_threadIsInitializedSignal;
     _threadIsInitialized = YES;
     [_threadIsInitializedSignal signal];
     
-    /// Run the runLoop
-    ///     This thread is blocked by the runLoop now
-    ///     TODO: Add an autoreleasepool to this runLoop to prevent abandoned memory. See:
-    ///         - Example implementation: https://stackoverflow.com/questions/11436826/how-to-manage-the-autorelease-pool-of-a-nsrunloop-running-in-a-secondary-thread
-    ///         - Quinn eskimo on abandoned memory: https://developer.apple.com/forums/thread/716261
+    /// Run the run loop in bounded slices so every pass gets its own autorelease pool.
+    /// Event-tap sources are registered in the common modes, which includes the
+    /// default mode used here.
     while (true) {
-        CFRunLoopRun();
+        @autoreleasepool {
+            CFRunLoopRunInMode(kCFRunLoopDefaultMode, 1.0, false);
+        }
     }
 }
 
@@ -122,6 +122,29 @@ static NSCondition *_threadIsInitializedSignal;
     assert(_runLoop != NULL);
     /// Return runLoop
     return _runLoop;
+}
+
++ (BOOL)isInitialized {
+    return _threadIsInitialized && _runLoop != NULL;
+}
+
++ (BOOL)performBlockAndWait:(dispatch_block_t)block timeout:(NSTimeInterval)timeout {
+    if (block == nil) return YES;
+    if (![self isInitialized]) return YES;
+    if ([NSThread currentThread] == _thread) {
+        block();
+        return YES;
+    }
+
+    dispatch_semaphore_t completed = dispatch_semaphore_create(0);
+    CFRunLoopPerformBlock(_runLoop, kCFRunLoopCommonModes, ^{
+        block();
+        dispatch_semaphore_signal(completed);
+    });
+    CFRunLoopWakeUp(_runLoop);
+
+    int64_t nanoseconds = (int64_t)(MAX(timeout, 0.0) * NSEC_PER_SEC);
+    return dispatch_semaphore_wait(completed, dispatch_time(DISPATCH_TIME_NOW, nanoseconds)) == 0;
 }
 
 @end

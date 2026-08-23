@@ -9,6 +9,9 @@
 
 #import "CGEventHIDEventBridge.h"
 @import CoreGraphics.CGEvent;
+#import <dispatch/dispatch.h>
+#import "Logging.h"
+#import "PrivateFunctions.h"
 
 @implementation CGEventHIDEventBridge
 
@@ -35,7 +38,9 @@ void CGEventSetHIDEvent(CGEventRef cgEvent, HIDEvent *hidEvent) {
     return CGEventSetIOHIDEvent(cgEvent, (__bridge IOHIDEventRef)hidEvent);
 }
 
-/// Defining our own IOHIDEvent -> CGEvent function, because we can't link against `_SLEventSetIOHIDEvent`. (See header)
+/// Attaches an IOHIDEvent to a CGEvent.
+///     The legacy implementation writes through hard-coded CGEvent struct offsets. Those offsets changed on macOS 27,
+///     so use SkyLight's setter there and keep the old implementation only for earlier macOS versions.
 void CGEventSetIOHIDEvent(CGEventRef cgEvent, IOHIDEventRef iohidEvent) {
     
     /// Validate
@@ -45,6 +50,25 @@ void CGEventSetIOHIDEvent(CGEventRef cgEvent, IOHIDEventRef iohidEvent) {
     }
     if (!iohidEvent) {
         assert(false);
+        return;
+    }
+
+    /// Use SkyLight's setter on macOS 27.
+    ///     The private setter copies the payload; retaining it here would leak one HID event for every simulated gesture.
+    ///     If Apple removes or renames the symbol, failing closed is safer than writing through offsets known to be invalid.
+    if (@available(macOS 27.0, *)) {
+        typedef void (*SLEventSetIOHIDEventFunction)(CGEventRef, IOHIDEventRef);
+        static SLEventSetIOHIDEventFunction slEventSetIOHIDEvent = NULL;
+        static dispatch_once_t onceToken;
+        dispatch_once(&onceToken, ^{
+            slEventSetIOHIDEvent = (SLEventSetIOHIDEventFunction)MFLoadSymbol_native(kMFFrameworkSkyLight, @"SLEventSetIOHIDEvent");
+        });
+
+        if (slEventSetIOHIDEvent) {
+            slEventSetIOHIDEvent(cgEvent, iohidEvent);
+        } else {
+            DDLogError("CGEventSetIOHIDEvent: couldn't resolve SLEventSetIOHIDEvent on macOS 27; skipping the incompatible offset writer.");
+        }
         return;
     }
     

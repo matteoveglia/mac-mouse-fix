@@ -74,29 +74,89 @@ BOOL directionChanged(MFDirection direction1, MFDirection direction2) {
     return 0.0;
 }
 
-+ (CFMachPortRef)createEventTapWithLocation:(CGEventTapLocation)location
++ (CFMachPortRef _Nullable)createEventTapWithLocation:(CGEventTapLocation)location
                                        mask:(CGEventMask)mask
                                      option:(CGEventTapOptions)option
                                   placement:(CGEventTapPlacement)placement
-                                   callback:(CGEventTapCallBack)callback {
+                                   callback:(CGEventTapCallBack _Nullable)callback {
     
     CFRunLoopRef rl = CFRunLoopGetMain();
     return [self createEventTapWithLocation:location mask:mask option:option placement:placement callback:callback runLoop:rl];
 }
 
-+ (CFMachPortRef)createEventTapWithLocation:(CGEventTapLocation)location
++ (CFMachPortRef _Nullable)createEventTapWithLocation:(CGEventTapLocation)location
                                        mask:(CGEventMask)mask
                                      option:(CGEventTapOptions)option
                                   placement:(CGEventTapPlacement)placement
-                                   callback:(CGEventTapCallBack)callback
-                                    runLoop:(CFRunLoopRef)runLoop {
-    CFMachPortRef eventTap = CGEventTapCreate(location, placement, option, mask, callback, NULL);
+                                   callback:(CGEventTapCallBack _Nullable)callback
+                                    runLoop:(CFRunLoopRef _Nullable)runLoop {
+    return [self createEventTapWithLocation:location mask:mask option:option placement:placement callback:callback runLoop:runLoop source:NULL];
+}
+
++ (CFMachPortRef _Nullable)createEventTapWithLocation:(CGEventTapLocation)location
+                                       mask:(CGEventMask)mask
+                                     option:(CGEventTapOptions)option
+                                  placement:(CGEventTapPlacement)placement
+                                   callback:(CGEventTapCallBack _Nullable)callback
+                                    runLoop:(CFRunLoopRef _Nullable)runLoop
+                                     source:(CFRunLoopSourceRef _Nullable * _Nullable)source {
+    if (callback == NULL || runLoop == NULL) {
+        DDLogError("ModificationUtility: can't create event tap without a callback and run loop.");
+        return NULL;
+    }
+
+    CFMachPortRef eventTap = CGEventTapCreate(location, placement, option, mask, (CGEventTapCallBack)callback, NULL);
     /// ^ Make sure to use the same EventTapLocation and EventTapPlacement here as you do in ButtonInputReceiver, otherwise there'll be timing and ordering issues! (This was one of the causes for the stuck bug and also caused other issues)
+    if (eventTap == NULL) {
+        DDLogError("ModificationUtility: failed to create event tap. Check Accessibility permission before retrying.");
+        return NULL;
+    }
+
     CFRunLoopSourceRef runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, eventTap, 0);
-    CFRunLoopAddSource(runLoop, runLoopSource, kCFRunLoopCommonModes);
-    CFRelease(runLoopSource);
+    if (runLoopSource == NULL) {
+        DDLogError("ModificationUtility: failed to create event-tap run-loop source.");
+        CFRelease(eventTap);
+        return NULL;
+    }
+
+    /// Keep a new tap inert until its owner explicitly starts it; this also prevents callbacks before the owner receives the handle.
     CGEventTapEnable(eventTap, false);
+    CFRunLoopAddSource(runLoop, runLoopSource, kCFRunLoopCommonModes);
+    if (source != NULL) {
+        *source = runLoopSource;
+    } else {
+        CFRelease(runLoopSource);
+    }
     return eventTap;
+}
+
++ (void)invalidateEventTap:(CFMachPortRef _Nullable * _Nonnull)eventTap
+                    source:(CFRunLoopSourceRef _Nullable * _Nonnull)source
+                   runLoop:(CFRunLoopRef _Nullable)runLoop
+                      mode:(CFRunLoopMode)mode {
+    if (eventTap == NULL || source == NULL) return;
+
+    CFMachPortRef tap = *eventTap;
+    CFRunLoopSourceRef runLoopSource = *source;
+
+    /// Stop callbacks before invalidating or removing the source. This method deliberately
+    /// leaves thread-hopping to its caller because CFRunLoop sources must be removed by
+    /// their owning run loop.
+    if (tap != NULL) {
+        CGEventTapEnable(tap, false);
+        CFMachPortInvalidate(tap);
+    }
+    if (runLoop != NULL && runLoopSource != NULL) {
+        CFRunLoopRemoveSource(runLoop, runLoopSource, mode);
+    }
+    if (runLoopSource != NULL) {
+        CFRelease(runLoopSource);
+        *source = NULL;
+    }
+    if (tap != NULL) {
+        CFRelease(tap);
+        *eventTap = NULL;
+    }
 }
 
 + (void)makeCursorSettable {

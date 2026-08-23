@@ -42,7 +42,10 @@
 #pragma mark - Variables - static
 
 static CFMachPortRef _eventTap;
+static CFRunLoopSourceRef _eventTapSource;
 static CGEventSourceRef _eventSource;
+static BOOL _eventTapShouldBeEnabled;
+static CGEventRef eventTapCallback(CGEventTapProxy proxy, CGEventType type, CGEventRef event, void *userInfo);
 
 static dispatch_queue_t _scrollQueue;
 
@@ -51,6 +54,65 @@ static TouchAnimator *_animator;
 static AXUIElementRef _systemWideAXUIElement; // TODO: should probably move this to Config or some sort of OverrideManager class
 + (AXUIElementRef) systemWideAXUIElement {
     return _systemWideAXUIElement;
+}
+
+/// MARK: Event tap lifecycle
+
+static BOOL createScrollEventTap(void) {
+    if (_eventTap != NULL) return YES;
+
+    CGEventMask mask = CGEventMaskBit(kCGEventScrollWheel);
+    CFMachPortRef eventTap = CGEventTapCreate(kCGHIDEventTap,
+                                              kCGHeadInsertEventTap,
+                                              kCGEventTapOptionDefault,
+                                              mask,
+                                              eventTapCallback,
+                                              NULL);
+    if (eventTap == NULL) {
+        DDLogError("Scroll.m: failed to create scroll event tap. Check Accessibility permission before retrying.");
+        return NO;
+    }
+
+    CFRunLoopSourceRef runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, eventTap, 0);
+    if (runLoopSource == NULL) {
+        DDLogError("Scroll.m: failed to create run-loop source for scroll event tap.");
+        CFRelease(eventTap);
+        return NO;
+    }
+
+    /// Scroll interception is controlled by SwitchMaster, so keep a newly-created tap disabled until startReceiving.
+    CGEventTapEnable(eventTap, false);
+    CFRunLoopAddSource(CFRunLoopGetCurrent(), runLoopSource, kCFRunLoopCommonModes);
+    _eventTap = eventTap;
+    _eventTapSource = runLoopSource;
+
+    DDLogInfo("Scroll.m: created scroll event tap");
+    return YES;
+}
+
+static BOOL scrollEventTapIsEnabled(void) {
+    return _eventTap != NULL && CGEventTapIsEnabled(_eventTap);
+}
+
+static BOOL setScrollEventTapEnabled(BOOL enabled, const char *reason) {
+    _eventTapShouldBeEnabled = enabled;
+    NSString *operation = enabled ? @"enable" : @"disable";
+    NSString *logReason = reason ? [NSString stringWithUTF8String:reason] : @"unknown";
+
+    if (_eventTap == NULL) {
+        DDLogError("Scroll.m: can't %@ scroll event tap because it was not created. reason=%@", operation, logReason);
+        return NO;
+    }
+
+    if (scrollEventTapIsEnabled() == enabled) return YES;
+
+    CGEventTapEnable(_eventTap, enabled);
+    if (scrollEventTapIsEnabled() != enabled) {
+        DDLogError("Scroll.m: failed to %@ scroll event tap. reason=%@", operation, logReason);
+        return NO;
+    }
+
+    return YES;
 }
 
 #pragma mark - Variables - dynamic
@@ -68,8 +130,10 @@ static CFTimeInterval _lastScrollAnalysisResultTimeStamp;
     
     /// Setup dispatch queue
     ///  For multithreading while still retaining control over execution order.
-    dispatch_queue_attr_t attr = dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_USER_INTERACTIVE, -1);
-    _scrollQueue = dispatch_queue_create("com.nuebling.mac-mouse-fix.helper.scroll", attr);
+    if (_scrollQueue == NULL) {
+        dispatch_queue_attr_t attr = dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_USER_INTERACTIVE, -1);
+        _scrollQueue = dispatch_queue_create("com.nuebling.mac-mouse-fix.helper.scroll", attr);
+    }
     
     /// Create AXUIElement for getting app under mouse pointer
     _systemWideAXUIElement = AXUIElementCreateSystemWide();
@@ -79,18 +143,14 @@ static CFTimeInterval _lastScrollAnalysisResultTimeStamp;
     }
     
     /// Create/enable scrollwheel input callback
-    if (_eventTap == NULL) {
-        CGEventMask mask = CGEventMaskBit(kCGEventScrollWheel);
-        _eventTap = CGEventTapCreate(kCGHIDEventTap, kCGHeadInsertEventTap, kCGEventTapOptionDefault, mask, eventTapCallback, NULL);
-        DDLogInfo("Scroll.m: created scroll event tap: %d", _eventTap != NULL);
-        CFRunLoopSourceRef runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, _eventTap, 0);
-        CFRunLoopAddSource(CFRunLoopGetCurrent(), runLoopSource, kCFRunLoopCommonModes);
-        CFRelease(runLoopSource);
-        CGEventTapEnable(_eventTap, false); // Not sure if this does anything
+    if (!createScrollEventTap()) {
+        DDLogError("Scroll.m: scroll interception is unavailable until event-tap creation succeeds.");
     }
     
     /// Create animator
-    _animator = [[TouchAnimator alloc] init];
+    if (_animator == nil) {
+        _animator = [[TouchAnimator alloc] init];
+    }
     
     /// Create initial config instance
     ///     Edit: I don't think this makes sense. `_scrollConfig` will be retrieved as necessary on first consecutive ticks
@@ -98,14 +158,19 @@ static CFTimeInterval _lastScrollAnalysisResultTimeStamp;
 }
 
 + (void)resetState {
+    if (_scrollQueue == NULL) {
+        DDLogWarn("Scroll.m: ignoring reset before the scroll queue has been initialized.");
+        return;
+    }
     dispatch_async(_scrollQueue, ^{
         resetState_Unsafe();
     });
 }
 void resetState_Sync(void) {
-    
-    /// TODO: I just saw a crash here where _scrollQueue was nil
-    
+    if (_scrollQueue == NULL) {
+        DDLogWarn("Scroll.m: ignoring synchronous reset before the scroll queue has been initialized.");
+        return;
+    }
     dispatch_sync(_scrollQueue, ^{
         resetState_Unsafe();
     });
@@ -135,15 +200,13 @@ void resetState_Unsafe(void) {
     /// - I did some rudimentary performance testing here (when we were still calling `resetState`) and it seems that `[Scroll startReceiving]` and `[Scroll stopReceiving]` have practically no impact on CPU usage even when spamming a button with such settings that SwitchMaster calls start/stop on each button press and release.
 
     
-    /// DEBUG
-    DDLogInfo("Scroll.m: startReceiving before enable: tap=%d receiving=%d", _eventTap != NULL, CGEventTapIsEnabled(_eventTap));
-
-    /// Start event tap
-    if (!CGEventTapIsEnabled(_eventTap)) {
-        CGEventTapEnable(_eventTap, true);
+    if (_scrollQueue == NULL || _animator == nil) {
+        DDLogError("Scroll.m: can't start receiving before Scroll.load_Manual completes.");
+        return;
     }
 
-    DDLogInfo("Scroll.m: startReceiving after enable: receiving=%d", CGEventTapIsEnabled(_eventTap));
+    if (!createScrollEventTap()) return;
+    setScrollEventTapEnabled(YES, "startReceiving");
     
 }
 
@@ -153,19 +216,17 @@ void resetState_Unsafe(void) {
     /// - Are there other things we should enable/disable here? ScrollModifiers.reactToModiferChange() comes to mind
     /// - Also see notes for `- startReceiving`
     
-    /// DEBUG
-    DDLogInfo("Scroll.m: stopReceiving: tap=%d receiving=%d", _eventTap != NULL, CGEventTapIsEnabled(_eventTap));
-    
-    
-    /// Stop event tap
-    if (CGEventTapIsEnabled(_eventTap)) {
-        CGEventTapEnable(_eventTap, false);
-    }
+    setScrollEventTapEnabled(NO, "stopReceiving");
+}
+
++ (void)shutdown {
+    _eventTapShouldBeEnabled = NO;
+    [ModificationUtility invalidateEventTap:&_eventTap source:&_eventTapSource runLoop:CFRunLoopGetMain() mode:kCFRunLoopCommonModes];
 }
 
 + (BOOL)isReceiving {
     /// At the time of writing we just need this for debugging. Should'nt ever need it for something else I think.
-    return CGEventTapIsEnabled(_eventTap);
+    return scrollEventTapIsEnabled();
 }
 
 #pragma mark - Event tap
@@ -262,8 +323,8 @@ static CGEventRef eventTapCallback(CGEventTapProxy proxy, CGEventType type, CGEv
 
         DDLogDebug("Scroll.m: eventTap was disabled by %@", type == kCGEventTapDisabledByTimeout ? @"timeout. Re-enabling." : @"user input.");
         
-        if (type == kCGEventTapDisabledByTimeout) {
-            CGEventTapEnable(_eventTap, true);
+        if (type == kCGEventTapDisabledByTimeout && _eventTapShouldBeEnabled) {
+            setScrollEventTapEnabled(YES, "eventTapDisabledByTimeout");
         }
         
         return event;
@@ -313,6 +374,11 @@ static CGEventRef eventTapCallback(CGEventTapProxy proxy, CGEventType type, CGEv
         ? CACurrentMediaTime()
         : CGEventGetTimestampInSeconds(event);
     
+    if (_scrollQueue == NULL) {
+        DDLogError("Scroll.m: received a scroll event before the processing queue was initialized.");
+        return event;
+    }
+
     /// Create copy of event
     
     CGEventRef eventCopy = CGEventCreateCopy(event); /// Create a copy, because the original event will become invalid and unusable in the new queue.
@@ -342,26 +408,12 @@ static void heavyProcessing(CGEventRef event, int64_t scrollDeltaAxis1, int64_t 
         DDLogDebug("Scroll.m: event: %@", hidEvent.description);
         
         
-        /// Get sending device
-        IOHIDDeviceRef sendingDev = CGEventGetSendingDevice(event);
-        
-        /// Print info on sendingDev
-        if (sendingDev != NULL) {
-            
-            CFStringRef name = IOHIDDeviceGetProperty(sendingDev, CFSTR(kIOHIDProductKey));
-            CFStringRef manufacturer = IOHIDDeviceGetProperty(sendingDev, CFSTR(kIOHIDManufacturerKey));
-            /// ^ [May 2025] Just saw a crash here See `Crash Reports > Mac Mouse Fix Helper-2025-05-29-112149.ips`
-            ///     Location: `Scroll.m:279 [[[CFStringRef manufacturer = IOHIDDeviceGetProperty(sendingDev, CFSTR(kIOHIDManufacturerKey))]]] > IOHIDDeviceGetProperty+120 > _os_unfair_lock_unlock_slow + 92 > ...`:
-            ///     Thread: Thread 3 (Dispatch queue: com.nuebling.mac-mouse-fix.helper.scroll)
-            ///     Message: BUG IN CLIENT OF LIBPLATFORM: Unlock of an `os_unfair_lock` not owned by current thread
-            ///     Possibly related: Thread 1 (Dispatch queue: com.apple.main-thread) was currently at `ButtonInputReceiver.m:142 > DeviceManager.m:71 > Device.m:258 (-[Device wrapsIOHIDDevice:]+0`)
-            ///     Interpretations:
-            ///         - Maybe Thread 1 and 3 tried to access the device at the same time causing issues. However thread 1 wasn't actually inside IOHIDDeviceGetProperty() according to the crash report. It was just at `-[Device wrapsIOHIDDevice:]+0`, which is right *before* accessing the device, but not accessing it, yet I think. Also, the presence of the `os_unfair_lock` suggests that IOHIDDevice *is* supposed to be thread-safe, but just had a bug right there.
-            ///             - After thinking a bit more, this makes no sense, looking at IOHIDDeviceRef.c > IOHIDDeviceGetProperty(), it just locks at the start and unlocks at the end and I have no clue how the unlocking thread can end up being different from the locking one.
-            ///         - Claude suggests that the IOHIDDevice must be memory-corrupted or used-after-free/used-after-close. Seems sorta plausible since CGEventGetSendingDevice() never cleans up its cache and could theoretically return pointer to a IOHIDDeviceRef that has disconnected. ... But it seems sort of unlikely that the device would get disconnected between sending the scroll events and the processing of the scroll events (which we're doing here). Also just because the device is disconnected it shouldn't mean that the whole IOHIDDeviceRef instance becomes memory-corrupted. I think it should still be safe to use, just fail read/write operations and so on (but I haven't tested this). Perhaps it's a thread-safety bug inside IOHIDDevice. When we put all this stuff on one 'IOThread' that should help with this bug. Also see this conversation with Claude: https://claude.ai/share/77e528bf-2908-4fa0-a14c-4a924b0198de
-            
-            DDLogDebug("Scroll.m: Device sending scroll: %@ %@", manufacturer, name);
-        }
+        /// Don't dereference the sending IOHIDDevice on this asynchronous queue.
+        /// A device can disappear between the event tap and this block running;
+        /// accessing its properties here has previously crashed in IOHID. The sender
+        /// ID is copied into the CGEvent and remains safe to log for diagnostics.
+        int64_t senderID = CGEventGetIntegerValueField(event, (CGEventField)kMFCGEventFieldSenderID);
+        DDLogDebug("Scroll.m: sender ID for scroll event: %lld", senderID);
     }
 
     /// Get axis

@@ -47,6 +47,30 @@
 /// Vars
 
 static ModifiedDragState _drag;
+static CFRunLoopSourceRef _eventTapSource;
+static BOOL _eventTapShouldBeEnabled;
+static CGEventRef eventTapCallBack(CGEventTapProxy proxy, CGEventType type, CGEventRef event, void *userInfo);
+
+static BOOL setModifiedDragEventTapEnabled(BOOL enabled, const char *reason) {
+    _eventTapShouldBeEnabled = enabled;
+    NSString *operation = enabled ? @"enable" : @"disable";
+    NSString *logReason = reason ? [NSString stringWithUTF8String:reason] : @"unknown";
+
+    if (_drag.eventTap == NULL) {
+        DDLogError("ModifiedDrag: can't %@ event tap because it was not created. reason=%@", operation, logReason);
+        return NO;
+    }
+
+    if (CGEventTapIsEnabled(_drag.eventTap) == enabled) return YES;
+
+    CGEventTapEnable(_drag.eventTap, enabled);
+    if (CGEventTapIsEnabled(_drag.eventTap) != enabled) {
+        DDLogError("ModifiedDrag: failed to %@ event tap. reason=%@", operation, logReason);
+        return NO;
+    }
+
+    return YES;
+}
 
 //static CGEventTapProxy _tapProxy;
 
@@ -119,10 +143,18 @@ static ModifiedDragState _drag;
         CGEventMask mask = CGEventMaskBit(kCGEventOtherMouseDragged) | CGEventMaskBit(kCGEventMouseMoved); /// kCGEventMouseMoved is only necessary for keyboard-only drag-modification (which we've disable because it had other problems), and maybe for AddMode to work.
         mask = mask | CGEventMaskBit(kCGEventLeftMouseDragged) | CGEventMaskBit(kCGEventRightMouseDragged); /// This is necessary for modified drag to work during a left/right click and drag. Concretely I added this to make drag and drop work. For that we only need the kCGEventLeftMouseDragged. Adding kCGEventRightMouseDragged is probably completely unnecessary. Not sure if there are other concrete applications outside of drag and drop.
         
-        CFMachPortRef eventTap = [ModificationUtility createEventTapWithLocation:location mask:mask option:option placement:placement callback:eventTapCallBack runLoop:GlobalEventTapThread.runLoop];
+        CFMachPortRef eventTap = [ModificationUtility createEventTapWithLocation:location mask:mask option:option placement:placement callback:eventTapCallBack runLoop:GlobalEventTapThread.runLoop source:&_eventTapSource];
         
         _drag.eventTap = eventTap;
+        if (_drag.eventTap == NULL) {
+            DDLogError("ModifiedDrag: event tap is unavailable until creation succeeds.");
+        }
     }
+}
+
++ (void)shutdown {
+    _eventTapShouldBeEnabled = NO;
+    [ModificationUtility invalidateEventTap:&_drag.eventTap source:&_eventTapSource runLoop:GlobalEventTapThread.runLoop mode:kCFRunLoopCommonModes];
 }
 
 /// Interface - start
@@ -189,6 +221,12 @@ static ModifiedDragState _drag;
     });
 }
 void initDragState_Unsafe(void) {
+    if (_drag.eventTap == NULL) {
+        DDLogError("ModifiedDrag: can't initialize drag before its event tap is created.");
+        _drag.activationState = kMFModifiedInputActivationStateNone;
+        return;
+    }
+
     
     _drag.origin = getRoundedPointerLocation();
     _drag.originOffset = (Vector){0};
@@ -197,7 +235,10 @@ void initDragState_Unsafe(void) {
     
     [_drag.outputPlugin initializeWithDragState:&_drag]; /// We just want to reset the plugin state here. The plugin will already hold ref to `_drag`. So this is not super pretty/semantic
     
-    CGEventTapEnable(_drag.eventTap, true);
+    if (!setModifiedDragEventTapEnabled(YES, "initializeDrag")) {
+        _drag.activationState = kMFModifiedInputActivationStateNone;
+        return;
+    }
     DDLogDebug("Enabled drag eventTap");
 }
 
@@ -211,9 +252,9 @@ static CGEventRef __nullable eventTapCallBack(CGEventTapProxy proxy, CGEventType
         
         DDLogDebug("ModifiedDrag eventTap was disabled by %@", type == kCGEventTapDisabledByTimeout ? @"timeout. Re-enabling." : @"user input.");
         
-        if (type == kCGEventTapDisabledByTimeout) {
+        if (type == kCGEventTapDisabledByTimeout && _eventTapShouldBeEnabled) {
 //            assert(false); /// Not sure this ever times out
-            CGEventTapEnable(_drag.eventTap, true);
+            setModifiedDragEventTapEnabled(YES, "eventTapDisabledByTimeout");
         }
         
         return event;
@@ -249,7 +290,7 @@ static CGEventRef __nullable eventTapCallBack(CGEventTapProxy proxy, CGEventType
             ///     We implemented the same idea in PointerFreeze.
             ///     Actually, the check for kMFModifiedInputActivationStateNone below has the same effect, but I think but this makes it clearer?
             
-            if (!CGEventTapIsEnabled(_drag.eventTap)) {
+            if (_drag.eventTap == NULL || !CGEventTapIsEnabled(_drag.eventTap)) {
                 return;
             }
             
@@ -431,7 +472,7 @@ void deactivate_Unsafe(BOOL cancel) {
     _drag.activationState = kMFModifiedInputActivationStateNone;
     
     /// Disable eventTap
-    CGEventTapEnable(_drag.eventTap, false);
+    setModifiedDragEventTapEnabled(NO, "deactivate");
     
     /// Debug
     DDLogDebug("modifiedDrag disabled drag eventTap. Caller info: %@", [SharedUtility callerInfo]);

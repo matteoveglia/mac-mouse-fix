@@ -30,6 +30,7 @@ static CGPoint _origin;
 static CGPoint _puppetCursorPosition;
 
 static BOOL _keepPointerMoving;
+static BOOL _pointerIsHiddenByPointerFreeze;
 
 static int _cgsConnection; /// This is used by private APIs to talk to the window server and do fancy shit like hiding the cursor from a background application
 static NSCursor *_puppetCursor;
@@ -37,12 +38,38 @@ static NSImageView *_puppetCursorView;
 static CGDirectDisplayID _display;
 
 static CFMachPortRef _eventTap;
+static CFRunLoopSourceRef _eventTapSource;
 static Boolean _coolEventTapIsEnabled; /// CGEventTapIsEnabled() is pretty slow, so we're using this instead
+static BOOL _eventTapShouldBeEnabled;
 
 static dispatch_queue_t _queue;
 
 static CFTimeInterval _lastEventTimestamp;
 static int64_t _lastEventDelta;
+
+static BOOL setPointerFreezeEventTapEnabled(BOOL enabled, const char *reason) {
+    _eventTapShouldBeEnabled = enabled;
+    NSString *operation = enabled ? @"enable" : @"disable";
+    NSString *logReason = reason ? [NSString stringWithUTF8String:reason] : @"unknown";
+
+    if (_eventTap == NULL) {
+        DDLogError("PointerFreeze: can't %@ event tap because it was not created. reason=%@", operation, logReason);
+        _coolEventTapIsEnabled = false;
+        return NO;
+    }
+
+    if (CGEventTapIsEnabled(_eventTap) != enabled) {
+        CGEventTapEnable(_eventTap, enabled);
+    }
+
+    _coolEventTapIsEnabled = CGEventTapIsEnabled(_eventTap);
+    if (_coolEventTapIsEnabled != enabled) {
+        DDLogError("PointerFreeze: failed to %@ event tap. reason=%@", operation, logReason);
+        return NO;
+    }
+
+    return YES;
+}
 
 /// + initialize
 
@@ -76,8 +103,34 @@ static int64_t _lastEventDelta;
         
         /// Setup eventTap
         ///     Using a listenOnly tap would be more appropriate but they sometimes behave weirdly
-        _eventTap = [ModificationUtility createEventTapWithLocation:kCGHIDEventTap mask:CGEventMaskBit(kCGEventMouseMoved) | CGEventMaskBit(kCGEventLeftMouseDragged) | CGEventMaskBit(kCGEventRightMouseDragged) | CGEventMaskBit(kCGEventOtherMouseDragged) option:kCGEventTapOptionDefault placement:kCGHeadInsertEventTap callback:mouseMovedCallback runLoop:GlobalEventTapThread.runLoop];
+        _eventTap = [ModificationUtility createEventTapWithLocation:kCGHIDEventTap mask:CGEventMaskBit(kCGEventMouseMoved) | CGEventMaskBit(kCGEventLeftMouseDragged) | CGEventMaskBit(kCGEventRightMouseDragged) | CGEventMaskBit(kCGEventOtherMouseDragged) option:kCGEventTapOptionDefault placement:kCGHeadInsertEventTap callback:mouseMovedCallback runLoop:GlobalEventTapThread.runLoop source:&_eventTapSource];
+        if (_eventTap == NULL) {
+            DDLogError("PointerFreeze: event tap is unavailable until creation succeeds.");
+        }
     }
+}
+
++ (void)shutdown {
+    _eventTapShouldBeEnabled = NO;
+    _coolEventTapIsEnabled = false;
+
+    /// Helper termination can interrupt a modified drag while its puppet cursor
+    /// is visible. Restore only the cursor state owned by this class before
+    /// tearing down the tap, otherwise disabling MMF can leave the real cursor
+    /// hidden until another process happens to balance the display hide count.
+    if (_queue != NULL) {
+        dispatch_sync(_queue, ^{
+            if (_pointerIsHiddenByPointerFreeze) {
+                [ModificationUtility hideMousePointer:NO];
+                [PointerFreeze drawPuppetCursor:NO fresh:NO];
+                _pointerIsHiddenByPointerFreeze = NO;
+            }
+            _keepPointerMoving = NO;
+            setSuppressionInterval(kMFEventSuppressionIntervalDefault);
+        });
+    }
+
+    [ModificationUtility invalidateEventTap:&_eventTap source:&_eventTapSource runLoop:GlobalEventTapThread.runLoop mode:kCFRunLoopCommonModes];
 }
 
 // MARK: Interface
@@ -103,6 +156,11 @@ static int64_t _lastEventDelta;
 + (void)freezeAtPosition:(CGPoint)origin keepPointerMoving:(BOOL)keepPointerMoving {
     /// Internal helper function
     
+    if (_queue == NULL || _eventTap == NULL) {
+        DDLogError("PointerFreeze: can't freeze pointer before load_Manual creates its queue and event tap.");
+        return;
+    }
+
     /// Lock
     ///     Not sure if necessary to lock, since we're starting the eventTap at the very end anyways.
     dispatch_sync(_queue, ^{
@@ -120,11 +178,17 @@ static int64_t _lastEventDelta;
         setSuppressionInterval(kMFEventSuppressionIntervalForStoppingCursor);
         
         /// Enable eventTap
-        CGEventTapEnable(_eventTap, true);
-        _coolEventTapIsEnabled = true;
+        if (!setPointerFreezeEventTapEnabled(YES, "freeze")) {
+            /// Nothing has been hidden or warped yet, but setting the
+            /// suppression interval above changes global cursor behavior.
+            /// Restore it before returning so a failed tap cannot leave the
+            /// pointer feeling frozen.
+            setSuppressionInterval(kMFEventSuppressionIntervalDefault);
+            return;
+        }
         
         if (keepPointerMoving) {
-            
+
             /// Init puppet cursor pos
             _puppetCursorPosition = origin;
             
@@ -145,6 +209,7 @@ static int64_t _lastEventDelta;
             
             /// Hid cursor
             [ModificationUtility hideMousePointer:YES];
+            _pointerIsHiddenByPointerFreeze = YES;
         }
     });
 }
@@ -156,10 +221,34 @@ CGEventRef _Nullable mouseMovedCallback(CGEventTapProxy proxy, CGEventType type,
         
         DDLogInfo("PointerFreeze eventTap disabled by %@", type == kCGEventTapDisabledByTimeout ? @"timeout. Re-enabling." : @"user input.");
         
+        /// The callback runs on GlobalEventTapThread, while normal freeze and
+        /// unfreeze transitions run on `_queue`. Serialize timeout recovery on
+        /// that queue too: otherwise an already-enqueued unfreeze can disable
+        /// the tap, followed by this callback re-enabling it from another
+        /// thread and leaving pointer freeze active.
+        if (_queue == NULL) {
+            DDLogError("PointerFreeze: can't recover event tap before load_Manual creates its queue.");
+            return event;
+        }
+
         if (type == kCGEventTapDisabledByTimeout) {
-//            assert(false); /// Not sure this ever times out
-            CGEventTapEnable(_eventTap, true);
-            _coolEventTapIsEnabled = true;
+            dispatch_async(_queue, ^{
+                if (!_eventTapShouldBeEnabled) {
+                    return;
+                }
+
+//                assert(false); /// Not sure this ever times out
+                if (!setPointerFreezeEventTapEnabled(YES, "eventTapDisabledByTimeout")) {
+                    _eventTapShouldBeEnabled = NO;
+                    [PointerFreeze unfreeze];
+                }
+            });
+        } else if (type == kCGEventTapDisabledByUserInput) {
+            dispatch_async(_queue, ^{
+                _eventTapShouldBeEnabled = NO;
+                _coolEventTapIsEnabled = false;
+                [PointerFreeze unfreeze];
+            });
         }
         
         return event;
@@ -213,6 +302,10 @@ CGEventRef _Nullable mouseMovedCallback(CGEventTapProxy proxy, CGEventType type,
 }
 
 + (void)unfreeze {
+    if (_queue == NULL) {
+        DDLogWarn("PointerFreeze: ignoring unfreeze before load_Manual creates its queue.");
+        return;
+    }
     
     /// Record timestamp
     CFTimeInterval timeSinceLastEvent = CACurrentMediaTime() - _lastEventTimestamp;
@@ -232,8 +325,7 @@ CGEventRef _Nullable mouseMovedCallback(CGEventTapProxy proxy, CGEventType type,
         
         /// Disable eventTap
         /// Think about the order of getting pos, unfreezing, and disabling event tap. -> I think it doesn't matter since everything is locked.
-        CGEventTapEnable(_eventTap, false);
-        _coolEventTapIsEnabled = false;
+        setPointerFreezeEventTapEnabled(NO, "unfreeze");
         
         CGPoint warpDestination;
         if (_keepPointerMoving) {
@@ -255,10 +347,11 @@ CGEventRef _Nullable mouseMovedCallback(CGEventTapProxy proxy, CGEventType type,
         /// Warp actual cursor to position of puppet cursor
         CGWarpMouseCursorPosition(warpDestination);
         
-        if (_keepPointerMoving) {
-        
+        if (_pointerIsHiddenByPointerFreeze) {
+
             /// Show mouse pointer again
             [ModificationUtility hideMousePointer:NO];
+            _pointerIsHiddenByPointerFreeze = NO;
             
             /// Undraw puppet cursor
             [PointerFreeze drawPuppetCursor:NO fresh:NO];

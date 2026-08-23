@@ -216,7 +216,12 @@ class GeneralTabController: NSViewController {
                 })
                 
             } else { /// !doEnabled
-                EnabledState.shared.disable()
+                EnabledState.shared.disable { error in
+                    if error != nil {
+                        DDLogError("GeneralTabController - Failed to disable helper. Error: \(error!)")
+                        Toasts.showSimpleToast(name: "k-is-disabled-toast")
+                    }
+                }
             }
         }
         

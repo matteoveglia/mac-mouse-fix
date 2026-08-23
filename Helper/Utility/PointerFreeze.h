@@ -18,6 +18,7 @@ NS_ASSUME_NONNULL_BEGIN
 + (void)freezeEventDispatchPointAtPosition:(CGPoint)origin;
 + (void)freezePointerAtPosition:(CGPoint)origin;
 + (void)unfreeze;
++ (void)shutdown;
 
 @end
 

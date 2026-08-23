@@ -22,6 +22,17 @@
 
 extern CFTimeInterval CATimeWithHostTime(UInt64 mach_absolute_time); /// I saw this in assembly but linking failed I think. Update: We built our own implementation of this at SharedUtility > machTimeToSeconds()
 
+static NSMutableDictionary<NSNumber *, id> *_hidDeviceCache;
+static dispatch_queue_t _hidDeviceCacheQueue;
+
+static void setupSendingDeviceCache(void) {
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        _hidDeviceCache = [NSMutableDictionary dictionary];
+        _hidDeviceCacheQueue = dispatch_queue_create("com.nuebling.mac-mouse-fix.sender-device-cache", DISPATCH_QUEUE_SERIAL);
+    });
+}
+
 #pragma mark - Scroll Events
 
 int64_t fixedScrollDelta(double scrollDelta) {
@@ -138,8 +149,10 @@ IOHIDDeviceRef _Nullable HIDEventGetSendingDevice(HIDEvent *hidEvent) {
 
 IOHIDDeviceRef _Nullable getSendingDeviceWithSenderID(uint64_t senderID) {
     
-    /// Pass in the senderID obtained from a CGEvent from field 87
-    ///     This uses a cache to avoid calling IOHIDDeviceCreate() (which is super slow) over and over.
+    /// Pass in the senderID obtained from a CGEvent from field 87.
+    /// This uses a cache to avoid calling IOHIDDeviceCreate() (which is super slow)
+    /// over and over. Sender lookup happens on both event-tap and scroll queues,
+    /// so every cache read/write must use the same serialization point.
     ///     \note Do we need to reset the cache at certain points? What do if a device is disconnected?
     ///         Update: [May 2025] Just saw a crash which might be related to not resetting the cache. See Scroll.m:279 for more.
     ///             But theoretically this should be fine I think? I think IOHIDDeviceRef should still be safe to use after disconnect, just if you try to read/write from it that should fail (I haven't tested this, and it would still be cleaner to return nil here after disconnect)
@@ -149,32 +162,45 @@ IOHIDDeviceRef _Nullable getSendingDeviceWithSenderID(uint64_t senderID) {
         return NULL;
     }
 
-    static NSMutableDictionary *_hidDeviceCache = nil;
-    if (_hidDeviceCache == nil) {
-        _hidDeviceCache = [NSMutableDictionary dictionary];
-    }
-    
-    id iohidDeviceFromCache = _hidDeviceCache[@(senderID)];
-    
-    if (iohidDeviceFromCache == [NSNull null]) {
-        return NULL;
-    }
-    if (iohidDeviceFromCache != nil) {
-        return (__bridge IOHIDDeviceRef)iohidDeviceFromCache;
-    }
-    
-    IOHIDDeviceRef iohidDevice = copySendingDevice_Reliable(senderID);
-    
-    /// Cache misses as well. Synthetic events can carry a stable, nonzero sender ID
-    /// without having an IORegistry service; retrying the lookup for every event is
-    /// both expensive and unnecessary.
-    if (iohidDevice != NULL) {
-        _hidDeviceCache[@(senderID)] = (__bridge_transfer id)iohidDevice;
-    } else {
-        _hidDeviceCache[@(senderID)] = [NSNull null];
-    }
-    
-    return iohidDevice;
+    setupSendingDeviceCache();
+
+    NSNumber *cacheKey = @(senderID);
+    __block IOHIDDeviceRef result = NULL;
+    dispatch_sync(_hidDeviceCacheQueue, ^{
+        id iohidDeviceFromCache = _hidDeviceCache[cacheKey];
+        if (iohidDeviceFromCache == [NSNull null]) {
+            return;
+        }
+        if (iohidDeviceFromCache != nil) {
+            result = (__bridge IOHIDDeviceRef)iohidDeviceFromCache;
+            return;
+        }
+
+        IOHIDDeviceRef iohidDevice = copySendingDevice_Reliable(senderID);
+
+        /// Cache misses as well. Synthetic events can carry a stable, nonzero sender ID
+        /// without having an IORegistry service; retrying the lookup for every event is
+        /// both expensive and unnecessary.
+        if (iohidDevice != NULL) {
+            id retainedDevice = CFBridgingRelease(iohidDevice);
+            _hidDeviceCache[cacheKey] = retainedDevice;
+            result = (__bridge IOHIDDeviceRef)retainedDevice;
+        } else {
+            _hidDeviceCache[cacheKey] = [NSNull null];
+        }
+    });
+
+    return result;
+}
+
+void invalidateSendingDeviceCache(void) {
+    /// Sender IDs can be reused after a USB/Bluetooth reconnect. Clearing this
+    /// cache when any attached device leaves avoids returning a disconnected
+    /// IOHIDDeviceRef to a late event or to a newly attached device.
+    setupSendingDeviceCache();
+    dispatch_sync(_hidDeviceCacheQueue, ^{
+        [_hidDeviceCache removeAllObjects];
+    });
 }
 
 IOHIDDeviceRef copySendingDevice_Faster(uint64_t senderID) {

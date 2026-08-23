@@ -425,6 +425,18 @@ static BOOL helperIsActive_PList(void) {
         ///         (When you restart the computer after emptying the trash that usually fixes things, so we didn't check that case for errors. Also when you restart the computer while the copy is still in the trash then the restart doesn't seem to change anything, so we also didn't test that case.)
         
         SMAppService *service = [SMAppService agentServiceWithPlistName:@"sm_launchd.plist"];
+
+        /// Disabling must be idempotent. System Settings can already have
+        /// disabled the service while a previously launched helper is still
+        /// winding down. In that case, `unregisterAndReturnError:` reports an
+        /// error even though the requested registration state has been reached.
+        /// Return success so the caller can reflect the off state and terminate
+        /// any remaining helper process below.
+        if (!enable && service.status != SMAppServiceStatusEnabled) {
+            NSLog(@"Helper service is already disabled (status: %ld).", (long)service.status);
+            return nil;
+        }
+
         if (enable) {
             BOOL success = [service registerAndReturnError:&error];
             if (!success){

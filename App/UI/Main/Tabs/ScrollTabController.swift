@@ -11,6 +11,53 @@ import ReactiveCocoa
 import AppKit
 import UniformTypeIdentifiers
 
+private final class TrackpadAppsTableDataSource: NSObject, NSTableViewDataSource, NSTableViewDelegate {
+    var bundleIDs: [String] = []
+
+    func numberOfRows(in tableView: NSTableView) -> Int {
+        bundleIDs.count
+    }
+
+    func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
+        let bundleID = bundleIDs[row]
+        let cellID = NSUserInterfaceItemIdentifier("TrackpadAppCell")
+        let cell = tableView.makeView(withIdentifier: cellID, owner: nil) as? NSTableCellView ?? {
+            let newCell = NSTableCellView()
+            newCell.identifier = cellID
+
+            let icon = NSImageView()
+            icon.translatesAutoresizingMaskIntoConstraints = false
+            icon.imageScaling = .scaleProportionallyDown
+            icon.identifier = NSUserInterfaceItemIdentifier("AppIcon")
+
+            let text = NSTextField(labelWithString: "")
+            text.translatesAutoresizingMaskIntoConstraints = false
+            text.lineBreakMode = .byTruncatingTail
+            text.identifier = NSUserInterfaceItemIdentifier("AppName")
+
+            newCell.addSubview(icon)
+            newCell.addSubview(text)
+            newCell.imageView = icon
+            newCell.textField = text
+            NSLayoutConstraint.activate([
+                icon.leadingAnchor.constraint(equalTo: newCell.leadingAnchor, constant: 6),
+                icon.centerYAnchor.constraint(equalTo: newCell.centerYAnchor),
+                icon.widthAnchor.constraint(equalToConstant: 20),
+                icon.heightAnchor.constraint(equalToConstant: 20),
+                text.leadingAnchor.constraint(equalTo: icon.trailingAnchor, constant: 8),
+                text.trailingAnchor.constraint(equalTo: newCell.trailingAnchor, constant: -6),
+                text.centerYAnchor.constraint(equalTo: newCell.centerYAnchor),
+            ])
+            return newCell
+        }()
+
+        let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID)
+        cell.imageView?.image = appURL.map { NSWorkspace.shared.icon(forFile: $0.path) }
+        cell.textField?.stringValue = appURL?.deletingPathExtension().lastPathComponent ?? bundleID
+        return cell
+    }
+}
+
 @available(macOS 11.0, *)
 class ScrollTabController: NSViewController {
     
@@ -70,29 +117,27 @@ class ScrollTabController: NSViewController {
     @IBOutlet weak var preciseModField: ModCaptureTextField!
     @IBOutlet weak var restoreDefaultModsButton: NSButton!
 
-    private var trackpadScopePanel: NSBox?
-    private var trackpadScopePanelHeightConstraint: NSLayoutConstraint?
-    private var trackpadScopePanelContent: NSStackView?
-    private var trackpadRestrictedAppsStack: NSStackView?
-    private var trackpadAppsTitle: NSTextField?
+    private var trackpadScopeRow: NSStackView?
+    private var trackpadAppsEditorWindow: NSWindow?
+    private var trackpadAppsTableView: NSTableView?
+    private let trackpadAppsTableDataSource = TrackpadAppsTableDataSource()
 
     private func removeWidthConstraints(from view: NSView) {
         view.removeConstraints(view.constraints.filter({ $0.firstAttribute == .width && $0.secondItem == nil }))
     }
 
-    /// Rebuild the app-scope controls into a small, self-contained settings panel.
+    /// Rebuild the scope controls into one compact row. The included/excluded list
+    /// lives in a dedicated sheet so it has room to be read and managed properly.
     /// The original controls are still loaded from the storyboard so their actions,
     /// accessibility identifiers, and existing localization metadata remain intact.
     private func configureTrackpadScopeUI() {
-        guard trackpadScopePanel == nil else { return }
+        guard trackpadScopeRow == nil else { return }
         guard let scopeStack = trackpadScopeStack,
               let scopeRow = scopeStack.arrangedSubviews.first as? NSStackView,
               let appsRow = scopeStack.arrangedSubviews.last as? NSStackView,
               let applyToLabel = scopeRow.arrangedSubviews.compactMap({ $0 as? NSTextField }).first else {
             return
         }
-
-        let appControls: [NSControl] = [trackpadAppsButton, trackpadAppsSummary, trackpadAppsClearButton]
 
         scopeRow.removeArrangedSubview(applyToLabel)
         scopeRow.removeArrangedSubview(trackpadScopePicker)
@@ -104,19 +149,23 @@ class ScrollTabController: NSViewController {
 
         applyToLabel.removeFromSuperview()
         trackpadScopePicker.removeFromSuperview()
-        appControls.forEach({ $0.removeFromSuperview() })
+        trackpadAppsButton.removeFromSuperview()
+        trackpadAppsSummary.removeFromSuperview()
+        trackpadAppsClearButton.removeFromSuperview()
         scopeRow.removeFromSuperview()
         appsRow.removeFromSuperview()
 
-        let scopeTitle = NSTextField(labelWithString: "App scope")
-        scopeTitle.font = NSFont.systemFont(ofSize: NSFont.smallSystemFontSize)
-        scopeTitle.textColor = .secondaryLabelColor
-
         applyToLabel.removeConstraints(applyToLabel.constraints.filter({ $0.firstAttribute == .width && $0.secondItem == nil }))
-        applyToLabel.widthAnchor.constraint(equalToConstant: 70).isActive = true
+        applyToLabel.widthAnchor.constraint(equalToConstant: 122).isActive = true
 
         removeWidthConstraints(from: trackpadScopePicker)
-        trackpadScopePicker.widthAnchor.constraint(equalToConstant: 170).isActive = true
+        trackpadScopePicker.widthAnchor.constraint(equalToConstant: 180).isActive = true
+
+        removeWidthConstraints(from: trackpadAppsButton)
+        trackpadAppsButton.widthAnchor.constraint(equalToConstant: 132).isActive = true
+        trackpadAppsButton.title = "Edit Apps…"
+        trackpadAppsButton.target = self
+        trackpadAppsButton.action = #selector(editTrackpadApps(_:))
 
         let scopeSelectionRow = NSStackView(views: [applyToLabel, trackpadScopePicker])
         scopeSelectionRow.orientation = .horizontal
@@ -124,85 +173,20 @@ class ScrollTabController: NSViewController {
         scopeSelectionRow.spacing = 10
         scopeSelectionRow.distribution = .fill
 
-        let appTitle = NSTextField(labelWithString: "Included apps")
-        appTitle.font = NSFont.systemFont(ofSize: NSFont.smallSystemFontSize)
-        appTitle.textColor = .secondaryLabelColor
-        trackpadAppsTitle = appTitle
-
-        trackpadAppsSummary.font = NSFont.systemFont(ofSize: NSFont.smallSystemFontSize)
-        trackpadAppsSummary.textColor = .secondaryLabelColor
-        trackpadAppsSummary.maximumNumberOfLines = 1
-        trackpadAppsSummary.cell?.lineBreakMode = .byTruncatingTail
-
-        let appListRow = NSStackView(views: [appTitle, trackpadAppsSummary])
-        appListRow.orientation = .horizontal
-        appListRow.alignment = .centerY
-        appListRow.spacing = 10
-        appListRow.distribution = .fill
-        appTitle.widthAnchor.constraint(equalToConstant: 100).isActive = true
-
-        removeWidthConstraints(from: trackpadAppsButton)
-        trackpadAppsButton.widthAnchor.constraint(equalToConstant: 122).isActive = true
-        removeWidthConstraints(from: trackpadAppsClearButton)
-        trackpadAppsClearButton.widthAnchor.constraint(equalToConstant: 52).isActive = true
-
-        let flexibleSpace = NSView()
-        flexibleSpace.setContentHuggingPriority(.defaultLow, for: .horizontal)
-        flexibleSpace.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-
-        let appActionsRow = NSStackView(views: [trackpadAppsButton, flexibleSpace, trackpadAppsClearButton])
-        appActionsRow.orientation = .horizontal
-        appActionsRow.alignment = .centerY
-        appActionsRow.spacing = 8
-        appActionsRow.distribution = .fill
-
-        let restrictedAppsStack = NSStackView(views: [appListRow, appActionsRow])
-        restrictedAppsStack.orientation = .vertical
-        restrictedAppsStack.alignment = .leading
-        restrictedAppsStack.spacing = 6
-        restrictedAppsStack.distribution = .fill
-        trackpadRestrictedAppsStack = restrictedAppsStack
-
-        let panelContent = NSStackView(views: [scopeTitle, scopeSelectionRow, restrictedAppsStack])
-        panelContent.orientation = .vertical
-        panelContent.alignment = .leading
-        panelContent.spacing = 8
-        panelContent.distribution = .fill
-        panelContent.edgeInsets = NSEdgeInsets(top: 12, left: 14, bottom: 12, right: 14)
-
-        scopeSelectionRow.widthAnchor.constraint(equalTo: panelContent.widthAnchor).isActive = true
-        appListRow.widthAnchor.constraint(equalTo: panelContent.widthAnchor).isActive = true
-        appActionsRow.widthAnchor.constraint(equalTo: panelContent.widthAnchor).isActive = true
-        restrictedAppsStack.widthAnchor.constraint(equalTo: panelContent.widthAnchor).isActive = true
-
-        let panel = NSBox()
-        panel.boxType = .custom
-        panel.borderColor = .separatorColor
-        panel.fillColor = .windowBackgroundColor
-        panel.cornerRadius = 8
-        panel.contentViewMargins = .zero
-        panel.contentView = panelContent
-        panel.translatesAutoresizingMaskIntoConstraints = false
-        panel.setContentHuggingPriority(.required, for: .vertical)
-        panel.setContentCompressionResistancePriority(.required, for: .vertical)
-        trackpadScopePanel = panel
-        trackpadScopePanelContent = panelContent
-        let panelHeightConstraint = panel.heightAnchor.constraint(equalToConstant: 116)
-        panelHeightConstraint.isActive = true
-        trackpadScopePanelHeightConstraint = panelHeightConstraint
+        let compactScopeRow = NSStackView(views: [scopeSelectionRow, trackpadAppsButton])
+        compactScopeRow.orientation = .vertical
+        compactScopeRow.alignment = .leading
+        compactScopeRow.spacing = 8
+        compactScopeRow.distribution = .fill
+        trackpadScopeRow = compactScopeRow
 
         let scopeIndex = trackpadSection.arrangedSubviews.firstIndex(of: scopeStack) ?? trackpadSection.arrangedSubviews.count
         trackpadSection.removeArrangedSubview(scopeStack)
         scopeStack.removeFromSuperview()
-        trackpadSection.insertArrangedSubview(panel, at: scopeIndex)
-        panel.widthAnchor.constraint(equalTo: trackpadSection.widthAnchor).isActive = true
-    }
-
-    private func updateTrackpadScopePanelHeight() {
-        guard let panelContent = trackpadScopePanelContent else { return }
-        panelContent.needsLayout = true
-        panelContent.layoutSubtreeIfNeeded()
-        trackpadScopePanelHeightConstraint?.constant = ceil(panelContent.fittingSize.height + 2)
+        trackpadSection.insertArrangedSubview(compactScopeRow, at: scopeIndex)
+        compactScopeRow.widthAnchor.constraint(equalTo: trackpadSection.widthAnchor).isActive = true
+        compactScopeRow.heightAnchor.constraint(equalToConstant: 59).isActive = true
+        scopeSelectionRow.widthAnchor.constraint(equalTo: compactScopeRow.widthAnchor).isActive = true
     }
 
     private func configuredTrackpadApps() -> [String] {
@@ -214,26 +198,12 @@ class ScrollTabController: NSViewController {
         let apps = configuredTrackpadApps()
         let isRestricted = scope != "all"
 
-        trackpadRestrictedAppsStack?.isHidden = !isRestricted
+        trackpadAppsButton.isHidden = !isRestricted
         trackpadAppsButton.isEnabled = isRestricted
-        trackpadAppsSummary.isEnabled = isRestricted
-        trackpadAppsClearButton.isEnabled = isRestricted && !apps.isEmpty
-        trackpadAppsTitle?.stringValue = scope == "include" ? "Included apps" : "Excluded apps"
-        updateTrackpadScopePanelHeight()
-
-        if !isRestricted {
-            trackpadAppsSummary.stringValue = ""
-        } else if apps.isEmpty {
-            trackpadAppsSummary.stringValue = scope == "include" ? "No apps selected" : "No exclusions"
-        } else {
-            let appNames = apps.map { bundleID in
-                if let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) {
-                    return appURL.deletingPathExtension().lastPathComponent
-                }
-                return bundleID
-            }
-            trackpadAppsSummary.stringValue = appNames.joined(separator: ", ")
-        }
+        trackpadAppsSummary.stringValue = ""
+        trackpadAppsClearButton.isHidden = true
+        trackpadAppsTableDataSource.bundleIDs = apps
+        trackpadAppsTableView?.reloadData()
     }
 
     private func saveTrackpadApps(_ bundleIDs: [String]) {
@@ -264,15 +234,104 @@ class ScrollTabController: NSViewController {
             self.saveTrackpadApps(bundleIDs.sorted())
         }
 
-        if let window = view.window {
+        if let window = trackpadAppsEditorWindow ?? view.window {
             panel.beginSheetModal(for: window, completionHandler: applySelection)
         } else {
             applySelection(panel.runModal())
         }
     }
 
-    @IBAction func clearTrackpadApps(_ sender: NSButton) {
-        saveTrackpadApps([])
+    @objc private func editTrackpadApps(_ sender: NSButton) {
+        let scope = trackpadScope.get() ?? "all"
+        guard scope != "all", let parentWindow = view.window else { return }
+
+        let title = scope == "include" ? "Choose apps for Trackpad Simulation" : "Exclude apps from Trackpad Simulation"
+        let instruction = scope == "include" ? "Apply Trackpad Simulation only to these apps:" : "Do not apply Trackpad Simulation to these apps:"
+
+        let contentView = NSView(frame: NSRect(x: 0, y: 0, width: 460, height: 330))
+        let instructionLabel = NSTextField(wrappingLabelWithString: instruction)
+        instructionLabel.translatesAutoresizingMaskIntoConstraints = false
+        instructionLabel.font = .systemFont(ofSize: 15)
+
+        let scrollView = NSScrollView()
+        scrollView.translatesAutoresizingMaskIntoConstraints = false
+        scrollView.hasVerticalScroller = true
+        scrollView.borderType = .bezelBorder
+
+        let tableView = NSTableView()
+        tableView.headerView = nil
+        tableView.rowHeight = 30
+        tableView.usesAlternatingRowBackgroundColors = true
+        let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("App"))
+        column.resizingMask = .autoresizingMask
+        tableView.addTableColumn(column)
+        tableView.dataSource = trackpadAppsTableDataSource
+        tableView.delegate = trackpadAppsTableDataSource
+        scrollView.documentView = tableView
+
+        let addButton = NSButton(title: "Add Apps…", target: self, action: #selector(chooseTrackpadApps(_:)))
+        addButton.bezelStyle = .rounded
+        addButton.translatesAutoresizingMaskIntoConstraints = false
+        let removeButton = NSButton(title: "Remove", target: self, action: #selector(removeSelectedTrackpadApps(_:)))
+        removeButton.bezelStyle = .rounded
+        removeButton.translatesAutoresizingMaskIntoConstraints = false
+        let doneButton = NSButton(title: "Done", target: self, action: #selector(closeTrackpadAppsEditor(_:)))
+        doneButton.bezelStyle = .rounded
+        doneButton.keyEquivalent = "\r"
+        doneButton.translatesAutoresizingMaskIntoConstraints = false
+
+        contentView.addSubview(instructionLabel)
+        contentView.addSubview(scrollView)
+        contentView.addSubview(addButton)
+        contentView.addSubview(removeButton)
+        contentView.addSubview(doneButton)
+        NSLayoutConstraint.activate([
+            instructionLabel.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 20),
+            instructionLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
+            instructionLabel.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -20),
+            scrollView.topAnchor.constraint(equalTo: instructionLabel.bottomAnchor, constant: 12),
+            scrollView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
+            scrollView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -20),
+            scrollView.bottomAnchor.constraint(equalTo: addButton.topAnchor, constant: -16),
+            addButton.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
+            addButton.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -20),
+            removeButton.leadingAnchor.constraint(equalTo: addButton.trailingAnchor, constant: 8),
+            removeButton.centerYAnchor.constraint(equalTo: addButton.centerYAnchor),
+            doneButton.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -20),
+            doneButton.centerYAnchor.constraint(equalTo: addButton.centerYAnchor),
+        ])
+
+        let editor = NSPanel(contentRect: contentView.bounds, styleMask: [.titled], backing: .buffered, defer: false)
+        editor.title = title
+        editor.contentView = contentView
+        editor.isReleasedWhenClosed = false
+        editor.standardWindowButton(.zoomButton)?.isHidden = true
+        editor.standardWindowButton(.miniaturizeButton)?.isHidden = true
+        trackpadAppsEditorWindow = editor
+        trackpadAppsTableView = tableView
+        trackpadAppsTableDataSource.bundleIDs = configuredTrackpadApps()
+        tableView.reloadData()
+        parentWindow.beginSheet(editor) { [weak self] _ in
+            self?.trackpadAppsEditorWindow = nil
+            self?.trackpadAppsTableView = nil
+        }
+    }
+
+    @objc private func removeSelectedTrackpadApps(_ sender: NSButton) {
+        guard let tableView = trackpadAppsTableView else { return }
+        let selectedRows = tableView.selectedRowIndexes
+        guard !selectedRows.isEmpty else { return }
+        var apps = configuredTrackpadApps()
+        for index in selectedRows.sorted(by: >) {
+            apps.remove(at: index)
+        }
+        saveTrackpadApps(apps)
+        tableView.deselectAll(nil)
+    }
+
+    @objc private func closeTrackpadAppsEditor(_ sender: NSButton) {
+        guard let editor = trackpadAppsEditorWindow, let parent = editor.sheetParent else { return }
+        parent.endSheet(editor)
     }
     
     private func migrateAxisSpecificScrollSettingsIfNeeded() {

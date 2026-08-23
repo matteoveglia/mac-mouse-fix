@@ -606,7 +606,7 @@ static void heavyProcessing(CGEventRef event, int64_t scrollDeltaAxis1, int64_t 
 
         if (_processedScrollLogCount < 48) {
             _processedScrollLogCount += 1;
-            DDLogInfo("Scroll.m: processed #%d axis=%d inputDelta=%lld rawInterval=%.6f interval=%.6f speed=%d smoothness=%d smooth=%d curve=%d scale=%.2f px=%lld gesture=%d momentum=%d",
+            DDLogInfo("Scroll.m: processed #%d axis=%d inputDelta=%lld rawInterval=%.6f interval=%.6f speed=%d smoothness=%d smooth=%d curve=%d scale=%.2f curvePx=%lld gesture=%d momentum=%d",
                       _processedScrollLogCount,
                       inputAxis,
                       scrollDelta,
@@ -627,16 +627,6 @@ static void heavyProcessing(CGEventRef event, int64_t scrollDeltaAxis1, int64_t 
         DDLogDebug("Scroll.m: timeBetweenTicks: %f, timeBetweenTicksRaw: %f, diff: %f, ticks: %lld", scrollAnalysisResult.timeBetweenTicks, scrollAnalysisResult.DEBUG_timeBetweenTicksRaw, scrollAnalysisResult.timeBetweenTicks - scrollAnalysisResult.DEBUG_timeBetweenTicksRaw, scrollAnalysisResult.consecutiveScrollTickCounter);
     }
 
-    /// Apply the optional horizontal output scale after acceleration and
-    /// fast-scroll processing. This keeps it independent from the speed
-    /// curve while reducing the total distance sent to every app that
-    /// receives horizontal scrolling, including Spaces navigation.
-    if (inputAxis == kMFAxisHorizontal
-        || _modifications.effectMod == kMFScrollEffectModificationHorizontalScroll) {
-        double scaledPixels = (double)pxToScrollForThisTick * _scrollConfig.horizontalScale;
-        pxToScrollForThisTick = MAX(1, llround(scaledPixels));
-    }
-    
     ///
     /// Send scroll events
     ///
@@ -934,6 +924,18 @@ static void heavyProcessing(CGEventRef event, int64_t scrollDeltaAxis1, int64_t 
 #pragma mark - Send Scroll events
 
 static void sendScroll(int64_t px, MFDirection scrollDirection, BOOL animated, MFAnimationCallbackPhase animationPhase, MFMomentumHint momentumHint, ScrollConfig *config) {
+
+    /// Apply horizontal scaling at the output boundary. Applying it here,
+    /// after the animator has selected its distance and timing, makes Scale
+    /// reduce the actual gesture velocity sent to apps without changing the
+    /// existing smoothness/timing curve. This is important for destinations
+    /// such as Spaces, which respond more to horizontal gesture velocity than
+    /// to the raw wheel delta.
+    if (px != 0
+        && (scrollDirection == kMFDirectionLeft || scrollDirection == kMFDirectionRight)) {
+        double scaledPixels = (double)px * config.horizontalScale;
+        px = MAX(1, llround(scaledPixels));
+    }
     
     /// Get x and y deltas
     

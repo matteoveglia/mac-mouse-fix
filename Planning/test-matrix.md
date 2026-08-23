@@ -1,6 +1,6 @@
 # Remediation Test Matrix
 
-Updated: 2026-08-23 · Branch: `codex/remediation-p0`
+Updated: 2026-08-23 · Branches: `codex/remediation-p0`, `codex/remediation-p1`
 
 This records current evidence for the compatibility remediation. A successful
 build is not evidence that the input path works on physical hardware, so those
@@ -14,6 +14,12 @@ checks remain explicitly open.
 | Helper enable | Pass | A native pointer click in the signed Debug app started the ServiceManagement job and helper process; Buttons and Scrolling became available. |
 | Helper disable | Pass | In the signed Debug app, the General toggle disabled Buttons and Scrolling, removed the ServiceManagement job, and terminated the helper process. |
 | Settings navigation | Pass | One-click navigation between tabs was verified in the signed Debug app. |
+| Per-app policy core | Pass | Direct Swift suite verifies canonical decode/encode, v25 legacy semantics, selector precedence, stable-identity fallback rules, duplicate/invalid input rejection, and bounded rule count. The App/Helper Debug and Release builds compile the runtime integration. |
+| Per-app runtime/UI | Manual pending | Verify Trackpad Simulation with All Apps, Only These Apps, and All Except These Apps. Switch the app under the pointer during one scroll series; policy must remain fixed until the next series. Java/wrapper, full-screen, missing-app, and iPhone Mirroring cases remain explicit gates. |
+| Click-cycle cancellation | Pass | Deterministic Swift reducer tests cover release, replacement cycle, stale hold/expiry callbacks, and idempotent teardown. |
+| Button gesture semantics | Manual pending | Verify single/double click, hold, click-drag, and click-scroll remaps, including releasing during a hold and unplugging during an active cycle. |
+| HID++ protocol core | Pass (synthetic only) | Objective-C fixture suite verifies strict short/long parsing, one in-flight request, timeout, disconnect, idempotent stop, and rejection of late responses. The fixture transport has no IOKit or hardware-write path. |
+| Logitech model support | Hardware blocked | No model is claimed supported yet. Capture M650/L, MX Master, Lift, and M720 reports over relevant Bolt/Unifying/Bluetooth transports before adding an IOKit adapter or reprogramming controls. Ordinary CGEvent button capture remains independent. |
 | Device hot-unplug | Manual pending | With MMF enabled: use a side button, unplug/reconnect the mouse, then confirm the same button still remaps and the helper remains running. |
 | Pointer-freeze / two-finger drag | Manual pending | Start the gesture, move briefly, then release. The real cursor must reappear and move normally. |
 | Scroll and virtual/remote input | Partial pass | Fast scrolling works with a mouse remote to this machine. Ordinary scrolling, browser maps, iPhone Mirroring/other remote sources if available, and helper restart remain pending. Do not assess horizontal scaling: it is intentionally not part of this fork. |

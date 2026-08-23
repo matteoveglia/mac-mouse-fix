@@ -38,11 +38,36 @@ static CGDirectDisplayID _display;
 
 static CFMachPortRef _eventTap;
 static Boolean _coolEventTapIsEnabled; /// CGEventTapIsEnabled() is pretty slow, so we're using this instead
+static BOOL _eventTapShouldBeEnabled;
 
 static dispatch_queue_t _queue;
 
 static CFTimeInterval _lastEventTimestamp;
 static int64_t _lastEventDelta;
+
+static BOOL setPointerFreezeEventTapEnabled(BOOL enabled, const char *reason) {
+    _eventTapShouldBeEnabled = enabled;
+    NSString *operation = enabled ? @"enable" : @"disable";
+    NSString *logReason = reason ? [NSString stringWithUTF8String:reason] : @"unknown";
+
+    if (_eventTap == NULL) {
+        DDLogError("PointerFreeze: can't %@ event tap because it was not created. reason=%@", operation, logReason);
+        _coolEventTapIsEnabled = false;
+        return NO;
+    }
+
+    if (CGEventTapIsEnabled(_eventTap) != enabled) {
+        CGEventTapEnable(_eventTap, enabled);
+    }
+
+    _coolEventTapIsEnabled = CGEventTapIsEnabled(_eventTap);
+    if (_coolEventTapIsEnabled != enabled) {
+        DDLogError("PointerFreeze: failed to %@ event tap. reason=%@", operation, logReason);
+        return NO;
+    }
+
+    return YES;
+}
 
 /// + initialize
 
@@ -77,6 +102,9 @@ static int64_t _lastEventDelta;
         /// Setup eventTap
         ///     Using a listenOnly tap would be more appropriate but they sometimes behave weirdly
         _eventTap = [ModificationUtility createEventTapWithLocation:kCGHIDEventTap mask:CGEventMaskBit(kCGEventMouseMoved) | CGEventMaskBit(kCGEventLeftMouseDragged) | CGEventMaskBit(kCGEventRightMouseDragged) | CGEventMaskBit(kCGEventOtherMouseDragged) option:kCGEventTapOptionDefault placement:kCGHeadInsertEventTap callback:mouseMovedCallback runLoop:GlobalEventTapThread.runLoop];
+        if (_eventTap == NULL) {
+            DDLogError("PointerFreeze: event tap is unavailable until creation succeeds.");
+        }
     }
 }
 
@@ -103,6 +131,11 @@ static int64_t _lastEventDelta;
 + (void)freezeAtPosition:(CGPoint)origin keepPointerMoving:(BOOL)keepPointerMoving {
     /// Internal helper function
     
+    if (_queue == NULL || _eventTap == NULL) {
+        DDLogError("PointerFreeze: can't freeze pointer before load_Manual creates its queue and event tap.");
+        return;
+    }
+
     /// Lock
     ///     Not sure if necessary to lock, since we're starting the eventTap at the very end anyways.
     dispatch_sync(_queue, ^{
@@ -120,8 +153,7 @@ static int64_t _lastEventDelta;
         setSuppressionInterval(kMFEventSuppressionIntervalForStoppingCursor);
         
         /// Enable eventTap
-        CGEventTapEnable(_eventTap, true);
-        _coolEventTapIsEnabled = true;
+        if (!setPointerFreezeEventTapEnabled(YES, "freeze")) return;
         
         if (keepPointerMoving) {
             
@@ -156,10 +188,13 @@ CGEventRef _Nullable mouseMovedCallback(CGEventTapProxy proxy, CGEventType type,
         
         DDLogInfo("PointerFreeze eventTap disabled by %@", type == kCGEventTapDisabledByTimeout ? @"timeout. Re-enabling." : @"user input.");
         
-        if (type == kCGEventTapDisabledByTimeout) {
+        if (type == kCGEventTapDisabledByTimeout && _eventTapShouldBeEnabled) {
 //            assert(false); /// Not sure this ever times out
-            CGEventTapEnable(_eventTap, true);
-            _coolEventTapIsEnabled = true;
+            setPointerFreezeEventTapEnabled(YES, "eventTapDisabledByTimeout");
+        } else if (type == kCGEventTapDisabledByUserInput) {
+            _eventTapShouldBeEnabled = NO;
+            _coolEventTapIsEnabled = false;
+            [PointerFreeze unfreeze];
         }
         
         return event;
@@ -213,6 +248,10 @@ CGEventRef _Nullable mouseMovedCallback(CGEventTapProxy proxy, CGEventType type,
 }
 
 + (void)unfreeze {
+    if (_queue == NULL) {
+        DDLogWarn("PointerFreeze: ignoring unfreeze before load_Manual creates its queue.");
+        return;
+    }
     
     /// Record timestamp
     CFTimeInterval timeSinceLastEvent = CACurrentMediaTime() - _lastEventTimestamp;
@@ -232,8 +271,7 @@ CGEventRef _Nullable mouseMovedCallback(CGEventTapProxy proxy, CGEventType type,
         
         /// Disable eventTap
         /// Think about the order of getting pos, unfreezing, and disabling event tap. -> I think it doesn't matter since everything is locked.
-        CGEventTapEnable(_eventTap, false);
-        _coolEventTapIsEnabled = false;
+        setPointerFreezeEventTapEnabled(NO, "unfreeze");
         
         CGPoint warpDestination;
         if (_keepPointerMoving) {

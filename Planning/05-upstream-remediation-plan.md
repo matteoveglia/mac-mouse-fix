@@ -106,7 +106,7 @@ The title is about five-button behavior on macOS 27, but a comment includes a he
 
 Fork [PR #1](https://github.com/matteoveglia/mac-mouse-fix/pull/1), `Restore macOS compatibility across app, helper, and configuration`, merged into `master` as `4fac63364` on 2026-08-23. It consolidates the earlier app-enable and keychain safety fixes with software-KVM/synthetic mouse and scroll handling, signed synthetic wheel deltas, axis-specific speed/smoothness controls, and the first app-scoped trackpad-simulation configuration. Horizontal scaling appeared in intermediate commits but is not in the final merged tree.
 
-This replaces the previous assumption that scrolling work was merely in progress. The implementation is now the baseline for WP3 and WP5; do not overwrite it or cherry-pick [#1865](https://github.com/noah-nuebling/mac-mouse-fix/pull/1865). It does not touch the macOS 27 Dock-swipe bridge or harden event-tap lifecycle failures. The PR recorded no application/helper build or functional test run, and its only completed checks were Socket Security reports, so the P0 regression matrix remains mandatory before treating the scroll issues as resolved.
+This replaces the previous assumption that scrolling work was merely in progress. The implementation is now the baseline for WP3 and WP5; do not overwrite it or cherry-pick [#1865](https://github.com/noah-nuebling/mac-mouse-fix/pull/1865). The following fork commit (`70efcfd8c`) added the macOS 27 Dock-swipe bridge and release-velocity correction; the current uncommitted WP2 increment adds creation/source/null guards and desired-state timeout recovery for the active tap owners. Debug App and `Tests` harness builds pass with Xcode 27 unsigned. Hardware, TCC, sleep/wake, and Dock behavior remain manual P0 gates.
 
 ## 3. Priority order
 
@@ -147,6 +147,8 @@ Old pre-Ventura behavior, issues superseded by native macOS functionality, empty
 4. Record a baseline before each functional change. The current feature work from the other chat is part of that baseline; do not reset, stash, or rebase it without coordination.
 5. Test Debug and Release signing separately. Local Debug entitlements intentionally lack the shared keychain group, while the Release configuration and app/helper keychain-sharing behavior remain unverified.
 
+Current implementation: `.github/workflows/build.yml` compiles the unsigned Debug App/Helper and Dock-swipe harness on pushes, pull requests, and manual dispatch. Release signing/archiving stays an explicit future lane because it needs fork-owned certificates and the existing Release build phases mutate version metadata.
+
 ### WP1 — macOS 27 Dock-swipe bridge
 
 Implement this as a standalone, upstreamable change in `Shared/IOKit/CGEventHIDEventBridge.m` and the touch simulation call path.
@@ -168,18 +170,19 @@ Acceptance tests:
 
 Relevant prior art is [#1920](https://github.com/noah-nuebling/mac-mouse-fix/pull/1920), [#1936](https://github.com/noah-nuebling/mac-mouse-fix/pull/1936), [#1938](https://github.com/noah-nuebling/mac-mouse-fix/pull/1938), and [#1950](https://github.com/noah-nuebling/mac-mouse-fix/pull/1950). [#1924](https://github.com/noah-nuebling/mac-mouse-fix/pull/1924) adds an extra retain whose ownership contract is not established; treat it as a comparison, not code to copy. The raw serialization approaches in [#1895](https://github.com/noah-nuebling/mac-mouse-fix/pull/1895) and [#1918](https://github.com/noah-nuebling/mac-mouse-fix/pull/1918) are reference material only.
 
-### WP2 — event-tap lifecycle and helper stability
+### WP2 — event-tap lifecycle and helper stability (P0 guards implemented; teardown and runtime matrix pending)
 
 Audit and then centralize the lifecycle of every event tap. The audit must include `Helper/Core/ModificationUtility.m`, `Helper/Core/Buttons/ButtonInputReceiver.m`, `Helper/Core/Scroll/Scroll.m`, `Helper/Core/PointerFreeze.m`, `Helper/Core/GlobalEventTapThread.m`, and any switch/master input path.
 
-- Check every `CGEventTapCreate`, run-loop-source creation, `CGEventTapIsEnabled`, and `CGEventTapEnable` result before use.
+- Completed in the current increment: `Scroll`, `ButtonInputReceiver`, `Modifiers`, `ModifiedDrag`, `PointerFreeze`, `KeyCaptureMode`, and `ModificationUtility` reject failed tap/source creation, avoid `CGEventTapIsEnabled`/`CGEventTapEnable` on null taps, and do not re-enable after a caller has requested stop. New taps are disabled before their run-loop source is attached.
+- Remaining: retain the source and run loop in an owned tap handle; serialize lifecycle operations; invalidate/remove/release on helper shutdown; and introduce a process-wide post-Accessibility readiness gate for message handling.
 - Treat a null tap, invalid Mach port, or missing run-loop source as a recoverable state with structured logging, not as a valid tap.
 - Make enable/disable/re-enable idempotent and serialized. Remove sources before releasing taps; never re-enable a tap after ownership has ended.
 - Handle Accessibility/TCC denial, revocation, fast user switching, sleep/wake, and helper registration failure with a retry/back-off path and an accurate menu-bar state.
 - Record the tap type, creation result, OS version, permission state, and retry count without logging sensitive event contents.
 - Reproduce the `CFMachPortGetContext`/`SLEventTapEnable` crash signature from [#1926](https://github.com/noah-nuebling/mac-mouse-fix/issues/1926) before and after the fix.
 
-Acceptance tests include cold launch, launch at login, permission grant/revoke, app disable/re-enable, helper restart, sleep/wake, user switch, device disconnect/reconnect, and a several-hour scroll/click soak. A failed tap must leave the helper alive and make the disabled state actionable.
+Acceptance tests include cold launch, launch at login, permission grant/revoke, app disable/re-enable, helper restart, sleep/wake, user switch, device disconnect/reconnect, and a several-hour scroll/click soak. A failed tap must leave the helper alive and make the disabled state actionable. The build-only checks do not replace this matrix.
 
 ### WP3 — scroll and synthetic-input reliability (implementation landed; verification active)
 
@@ -191,7 +194,7 @@ Fork PR #1 landed the synthetic KVM, signed-delta, axis-control, and app-scope i
 - Compare configured speed with the system scroll-speed setting on Razer and Logitech devices; do not assume the system value is a device-independent multiplier.
 - Re-test Firefox, Chrome/Google Maps, Preview, Mission Control, iPhone Mirroring, Remote Desktop, and Java/Electron apps.
 - Add a state-reset test for heavy scroll, app switch, helper restart, and device hot-unplug so momentum cannot survive into the next session.
-- Create/enable/disable the Scroll event tap through a null-safe lifecycle before claiming scroll reliability. PR #1 did not change the unguarded tap/source/re-enable paths.
+- The Scroll event tap now has a null-safe create/enable/disable/recovery path; run the P0 manual matrix before claiming scroll reliability.
 - Separate a true scroll-path regression from a dead event tap or an app-specific incompatibility before changing math.
 
 ### WP4 — Logitech and other device input

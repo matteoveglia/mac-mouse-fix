@@ -43,6 +43,8 @@
 
 static CFMachPortRef _eventTap;
 static CGEventSourceRef _eventSource;
+static BOOL _eventTapShouldBeEnabled;
+static CGEventRef eventTapCallback(CGEventTapProxy proxy, CGEventType type, CGEventRef event, void *userInfo);
 
 static dispatch_queue_t _scrollQueue;
 
@@ -51,6 +53,65 @@ static TouchAnimator *_animator;
 static AXUIElementRef _systemWideAXUIElement; // TODO: should probably move this to Config or some sort of OverrideManager class
 + (AXUIElementRef) systemWideAXUIElement {
     return _systemWideAXUIElement;
+}
+
+/// MARK: Event tap lifecycle
+
+static BOOL createScrollEventTap(void) {
+    if (_eventTap != NULL) return YES;
+
+    CGEventMask mask = CGEventMaskBit(kCGEventScrollWheel);
+    CFMachPortRef eventTap = CGEventTapCreate(kCGHIDEventTap,
+                                              kCGHeadInsertEventTap,
+                                              kCGEventTapOptionDefault,
+                                              mask,
+                                              eventTapCallback,
+                                              NULL);
+    if (eventTap == NULL) {
+        DDLogError("Scroll.m: failed to create scroll event tap. Check Accessibility permission before retrying.");
+        return NO;
+    }
+
+    CFRunLoopSourceRef runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, eventTap, 0);
+    if (runLoopSource == NULL) {
+        DDLogError("Scroll.m: failed to create run-loop source for scroll event tap.");
+        CFRelease(eventTap);
+        return NO;
+    }
+
+    /// Scroll interception is controlled by SwitchMaster, so keep a newly-created tap disabled until startReceiving.
+    CGEventTapEnable(eventTap, false);
+    _eventTap = eventTap;
+    CFRunLoopAddSource(CFRunLoopGetCurrent(), runLoopSource, kCFRunLoopCommonModes);
+    CFRelease(runLoopSource);
+
+    DDLogInfo("Scroll.m: created scroll event tap");
+    return YES;
+}
+
+static BOOL scrollEventTapIsEnabled(void) {
+    return _eventTap != NULL && CGEventTapIsEnabled(_eventTap);
+}
+
+static BOOL setScrollEventTapEnabled(BOOL enabled, const char *reason) {
+    _eventTapShouldBeEnabled = enabled;
+    NSString *operation = enabled ? @"enable" : @"disable";
+    NSString *logReason = reason ? [NSString stringWithUTF8String:reason] : @"unknown";
+
+    if (_eventTap == NULL) {
+        DDLogError("Scroll.m: can't %@ scroll event tap because it was not created. reason=%@", operation, logReason);
+        return NO;
+    }
+
+    if (scrollEventTapIsEnabled() == enabled) return YES;
+
+    CGEventTapEnable(_eventTap, enabled);
+    if (scrollEventTapIsEnabled() != enabled) {
+        DDLogError("Scroll.m: failed to %@ scroll event tap. reason=%@", operation, logReason);
+        return NO;
+    }
+
+    return YES;
 }
 
 #pragma mark - Variables - dynamic
@@ -68,8 +129,10 @@ static CFTimeInterval _lastScrollAnalysisResultTimeStamp;
     
     /// Setup dispatch queue
     ///  For multithreading while still retaining control over execution order.
-    dispatch_queue_attr_t attr = dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_USER_INTERACTIVE, -1);
-    _scrollQueue = dispatch_queue_create("com.nuebling.mac-mouse-fix.helper.scroll", attr);
+    if (_scrollQueue == NULL) {
+        dispatch_queue_attr_t attr = dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_USER_INTERACTIVE, -1);
+        _scrollQueue = dispatch_queue_create("com.nuebling.mac-mouse-fix.helper.scroll", attr);
+    }
     
     /// Create AXUIElement for getting app under mouse pointer
     _systemWideAXUIElement = AXUIElementCreateSystemWide();
@@ -79,18 +142,14 @@ static CFTimeInterval _lastScrollAnalysisResultTimeStamp;
     }
     
     /// Create/enable scrollwheel input callback
-    if (_eventTap == NULL) {
-        CGEventMask mask = CGEventMaskBit(kCGEventScrollWheel);
-        _eventTap = CGEventTapCreate(kCGHIDEventTap, kCGHeadInsertEventTap, kCGEventTapOptionDefault, mask, eventTapCallback, NULL);
-        DDLogInfo("Scroll.m: created scroll event tap: %d", _eventTap != NULL);
-        CFRunLoopSourceRef runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, _eventTap, 0);
-        CFRunLoopAddSource(CFRunLoopGetCurrent(), runLoopSource, kCFRunLoopCommonModes);
-        CFRelease(runLoopSource);
-        CGEventTapEnable(_eventTap, false); // Not sure if this does anything
+    if (!createScrollEventTap()) {
+        DDLogError("Scroll.m: scroll interception is unavailable until event-tap creation succeeds.");
     }
     
     /// Create animator
-    _animator = [[TouchAnimator alloc] init];
+    if (_animator == nil) {
+        _animator = [[TouchAnimator alloc] init];
+    }
     
     /// Create initial config instance
     ///     Edit: I don't think this makes sense. `_scrollConfig` will be retrieved as necessary on first consecutive ticks
@@ -98,14 +157,19 @@ static CFTimeInterval _lastScrollAnalysisResultTimeStamp;
 }
 
 + (void)resetState {
+    if (_scrollQueue == NULL) {
+        DDLogWarn("Scroll.m: ignoring reset before the scroll queue has been initialized.");
+        return;
+    }
     dispatch_async(_scrollQueue, ^{
         resetState_Unsafe();
     });
 }
 void resetState_Sync(void) {
-    
-    /// TODO: I just saw a crash here where _scrollQueue was nil
-    
+    if (_scrollQueue == NULL) {
+        DDLogWarn("Scroll.m: ignoring synchronous reset before the scroll queue has been initialized.");
+        return;
+    }
     dispatch_sync(_scrollQueue, ^{
         resetState_Unsafe();
     });
@@ -135,15 +199,13 @@ void resetState_Unsafe(void) {
     /// - I did some rudimentary performance testing here (when we were still calling `resetState`) and it seems that `[Scroll startReceiving]` and `[Scroll stopReceiving]` have practically no impact on CPU usage even when spamming a button with such settings that SwitchMaster calls start/stop on each button press and release.
 
     
-    /// DEBUG
-    DDLogInfo("Scroll.m: startReceiving before enable: tap=%d receiving=%d", _eventTap != NULL, CGEventTapIsEnabled(_eventTap));
-
-    /// Start event tap
-    if (!CGEventTapIsEnabled(_eventTap)) {
-        CGEventTapEnable(_eventTap, true);
+    if (_scrollQueue == NULL || _animator == nil) {
+        DDLogError("Scroll.m: can't start receiving before Scroll.load_Manual completes.");
+        return;
     }
 
-    DDLogInfo("Scroll.m: startReceiving after enable: receiving=%d", CGEventTapIsEnabled(_eventTap));
+    if (!createScrollEventTap()) return;
+    setScrollEventTapEnabled(YES, "startReceiving");
     
 }
 
@@ -153,19 +215,12 @@ void resetState_Unsafe(void) {
     /// - Are there other things we should enable/disable here? ScrollModifiers.reactToModiferChange() comes to mind
     /// - Also see notes for `- startReceiving`
     
-    /// DEBUG
-    DDLogInfo("Scroll.m: stopReceiving: tap=%d receiving=%d", _eventTap != NULL, CGEventTapIsEnabled(_eventTap));
-    
-    
-    /// Stop event tap
-    if (CGEventTapIsEnabled(_eventTap)) {
-        CGEventTapEnable(_eventTap, false);
-    }
+    setScrollEventTapEnabled(NO, "stopReceiving");
 }
 
 + (BOOL)isReceiving {
     /// At the time of writing we just need this for debugging. Should'nt ever need it for something else I think.
-    return CGEventTapIsEnabled(_eventTap);
+    return scrollEventTapIsEnabled();
 }
 
 #pragma mark - Event tap
@@ -262,8 +317,8 @@ static CGEventRef eventTapCallback(CGEventTapProxy proxy, CGEventType type, CGEv
 
         DDLogDebug("Scroll.m: eventTap was disabled by %@", type == kCGEventTapDisabledByTimeout ? @"timeout. Re-enabling." : @"user input.");
         
-        if (type == kCGEventTapDisabledByTimeout) {
-            CGEventTapEnable(_eventTap, true);
+        if (type == kCGEventTapDisabledByTimeout && _eventTapShouldBeEnabled) {
+            setScrollEventTapEnabled(YES, "eventTapDisabledByTimeout");
         }
         
         return event;
@@ -313,6 +368,11 @@ static CGEventRef eventTapCallback(CGEventTapProxy proxy, CGEventType type, CGEv
         ? CACurrentMediaTime()
         : CGEventGetTimestampInSeconds(event);
     
+    if (_scrollQueue == NULL) {
+        DDLogError("Scroll.m: received a scroll event before the processing queue was initialized.");
+        return event;
+    }
+
     /// Create copy of event
     
     CGEventRef eventCopy = CGEventCreateCopy(event); /// Create a copy, because the original event will become invalid and unusable in the new queue.

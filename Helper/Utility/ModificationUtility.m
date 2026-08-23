@@ -74,28 +74,45 @@ BOOL directionChanged(MFDirection direction1, MFDirection direction2) {
     return 0.0;
 }
 
-+ (CFMachPortRef)createEventTapWithLocation:(CGEventTapLocation)location
++ (CFMachPortRef _Nullable)createEventTapWithLocation:(CGEventTapLocation)location
                                        mask:(CGEventMask)mask
                                      option:(CGEventTapOptions)option
                                   placement:(CGEventTapPlacement)placement
-                                   callback:(CGEventTapCallBack)callback {
+                                   callback:(CGEventTapCallBack _Nullable)callback {
     
     CFRunLoopRef rl = CFRunLoopGetMain();
     return [self createEventTapWithLocation:location mask:mask option:option placement:placement callback:callback runLoop:rl];
 }
 
-+ (CFMachPortRef)createEventTapWithLocation:(CGEventTapLocation)location
++ (CFMachPortRef _Nullable)createEventTapWithLocation:(CGEventTapLocation)location
                                        mask:(CGEventMask)mask
-                                     option:(CGEventTapOptions)option
+                                    option:(CGEventTapOptions)option
                                   placement:(CGEventTapPlacement)placement
-                                   callback:(CGEventTapCallBack)callback
-                                    runLoop:(CFRunLoopRef)runLoop {
-    CFMachPortRef eventTap = CGEventTapCreate(location, placement, option, mask, callback, NULL);
+                                   callback:(CGEventTapCallBack _Nullable)callback
+                                    runLoop:(CFRunLoopRef _Nullable)runLoop {
+    if (callback == NULL || runLoop == NULL) {
+        DDLogError("ModificationUtility: can't create event tap without a callback and run loop.");
+        return NULL;
+    }
+
+    CFMachPortRef eventTap = CGEventTapCreate(location, placement, option, mask, (CGEventTapCallBack)callback, NULL);
     /// ^ Make sure to use the same EventTapLocation and EventTapPlacement here as you do in ButtonInputReceiver, otherwise there'll be timing and ordering issues! (This was one of the causes for the stuck bug and also caused other issues)
+    if (eventTap == NULL) {
+        DDLogError("ModificationUtility: failed to create event tap. Check Accessibility permission before retrying.");
+        return NULL;
+    }
+
     CFRunLoopSourceRef runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, eventTap, 0);
+    if (runLoopSource == NULL) {
+        DDLogError("ModificationUtility: failed to create event-tap run-loop source.");
+        CFRelease(eventTap);
+        return NULL;
+    }
+
+    /// Keep a new tap inert until its owner explicitly starts it; this also prevents callbacks before the owner receives the handle.
+    CGEventTapEnable(eventTap, false);
     CFRunLoopAddSource(runLoop, runLoopSource, kCFRunLoopCommonModes);
     CFRelease(runLoopSource);
-    CGEventTapEnable(eventTap, false);
     return eventTap;
 }
 

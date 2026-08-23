@@ -21,18 +21,18 @@ BOOL directionChanged(MFDirection direction1, MFDirection direction2);
 
 + (NSTimeInterval)nsTimeStamp;
 
-+ (CFMachPortRef)createEventTapWithLocation:(CGEventTapLocation)location
++ (CFMachPortRef _Nullable)createEventTapWithLocation:(CGEventTapLocation)location
                                        mask:(CGEventMask)mask
                                      option:(CGEventTapOptions)option
                                   placement:(CGEventTapPlacement)placement
-                                   callback:(CGEventTapCallBack)callback;
+                                   callback:(CGEventTapCallBack _Nullable)callback;
 
-+ (CFMachPortRef)createEventTapWithLocation:(CGEventTapLocation)location
++ (CFMachPortRef _Nullable)createEventTapWithLocation:(CGEventTapLocation)location
                                        mask:(CGEventMask)mask
                                      option:(CGEventTapOptions)option
                                   placement:(CGEventTapPlacement)placement
-                                   callback:(CGEventTapCallBack)callback
-                                    runLoop:(CFRunLoopRef)runLoop;
+                                   callback:(CGEventTapCallBack _Nullable)callback
+                                    runLoop:(CFRunLoopRef _Nullable)runLoop;
 
 + (void)makeCursorSettable;
 

@@ -347,45 +347,6 @@ class ScrollTabController: NSViewController {
         parent.endSheet(editor)
     }
     
-    private func migrateAxisSpecificScrollSettingsIfNeeded() {
-        let legacySmooth = config("Scroll.smooth") as! String
-        let legacySpeed = config("Scroll.speed") as! String
-        var didChange = false
-
-        if config("Scroll.verticalSmooth") == nil {
-            setConfig("Scroll.verticalSmooth", legacySmooth as NSString)
-            didChange = true
-        }
-        if config("Scroll.horizontalSmooth") == nil {
-            setConfig("Scroll.horizontalSmooth", legacySmooth as NSString)
-            didChange = true
-        }
-        if config("Scroll.verticalSpeed") == nil {
-            setConfig("Scroll.verticalSpeed", legacySpeed as NSString)
-            didChange = true
-        }
-        if config("Scroll.horizontalSpeed") == nil {
-            setConfig("Scroll.horizontalSpeed", legacySpeed as NSString)
-            didChange = true
-        }
-        if config("Scroll.trackpadSimulationScope") == nil {
-            setConfig("Scroll.trackpadSimulationScope", "all" as NSString)
-            didChange = true
-        }
-        if config("Scroll.trackpadSimulationApps") == nil {
-            setConfig("Scroll.trackpadSimulationApps", NSArray())
-            didChange = true
-        }
-        if config("Scroll.horizontalScale") != nil {
-            removeFromConfig("Scroll.horizontalScale")
-            didChange = true
-        }
-
-        if didChange {
-            commitConfig()
-        }
-    }
-
     /// Keep the general toggles together at the top, followed by the two
     /// axis-specific settings sections. This is done before any collapsible
     /// sections are initialized, so the existing stack animation machinery
@@ -454,11 +415,6 @@ class ScrollTabController: NSViewController {
 
         arrangeSections()
 
-        /// Existing installations only have the original shared settings.
-        /// Seed the axis-specific settings from those values once so the new
-        /// controls are immediately usable without changing the user's setup.
-        migrateAxisSpecificScrollSettingsIfNeeded()
-        
         /// There was some reason we don't use viewDidLoad here, and instead we use awakeFromNib. I think it had to do with preventing animations from playing when the app starts right into this tab or sth. But maybe it's just unnecessary.
         /// Edit: The replacing between the macOSHint and the preciseSection broke when we used awakeFromNib. Not totally sure why. Let's hope viewDidLoad works after all.
         

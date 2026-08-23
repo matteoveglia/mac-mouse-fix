@@ -21,6 +21,7 @@
 
 
 CFMachPortRef _keyCaptureEventTap;
+static BOOL _keyCaptureModeEnabled;
 
 + (void)enable {
     
@@ -29,14 +30,31 @@ CFMachPortRef _keyCaptureEventTap;
     if (_keyCaptureEventTap == nil) {
         _keyCaptureEventTap = [ModificationUtility createEventTapWithLocation:kCGHIDEventTap mask:CGEventMaskBit(kCGEventKeyDown) | CGEventMaskBit(NSEventTypeSystemDefined) option:kCGEventTapOptionDefault placement:kCGHeadInsertEventTap callback:keyCaptureModeCallback];
     }
+    if (_keyCaptureEventTap == NULL) {
+        DDLogError("KeyCaptureMode: can't enable key capture because its event tap was not created.");
+        _keyCaptureModeEnabled = NO;
+        return;
+    }
+
+    _keyCaptureModeEnabled = YES;
     CGEventTapEnable(_keyCaptureEventTap, true);
 }
 
 + (void)disable {
+    _keyCaptureModeEnabled = NO;
+    if (_keyCaptureEventTap == NULL) return;
     CGEventTapEnable(_keyCaptureEventTap, false);
 }
 
 CGEventRef  _Nullable keyCaptureModeCallback(CGEventTapProxy proxy, CGEventType type, CGEventRef event, void *userInfo) {
+
+    if (type == kCGEventTapDisabledByTimeout || type == kCGEventTapDisabledByUserInput) {
+        DDLogWarn("KeyCaptureMode event tap disabled by %@.", type == kCGEventTapDisabledByTimeout ? @"timeout" : @"user input");
+        if (type == kCGEventTapDisabledByTimeout && _keyCaptureModeEnabled && _keyCaptureEventTap != NULL) {
+            CGEventTapEnable(_keyCaptureEventTap, true);
+        }
+        return event;
+    }
     
     CGEventFlags flags  = CGEventGetFlags(event);
     

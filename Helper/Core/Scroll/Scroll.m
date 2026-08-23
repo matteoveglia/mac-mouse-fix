@@ -408,26 +408,12 @@ static void heavyProcessing(CGEventRef event, int64_t scrollDeltaAxis1, int64_t 
         DDLogDebug("Scroll.m: event: %@", hidEvent.description);
         
         
-        /// Get sending device
-        IOHIDDeviceRef sendingDev = CGEventGetSendingDevice(event);
-        
-        /// Print info on sendingDev
-        if (sendingDev != NULL) {
-            
-            CFStringRef name = IOHIDDeviceGetProperty(sendingDev, CFSTR(kIOHIDProductKey));
-            CFStringRef manufacturer = IOHIDDeviceGetProperty(sendingDev, CFSTR(kIOHIDManufacturerKey));
-            /// ^ [May 2025] Just saw a crash here See `Crash Reports > Mac Mouse Fix Helper-2025-05-29-112149.ips`
-            ///     Location: `Scroll.m:279 [[[CFStringRef manufacturer = IOHIDDeviceGetProperty(sendingDev, CFSTR(kIOHIDManufacturerKey))]]] > IOHIDDeviceGetProperty+120 > _os_unfair_lock_unlock_slow + 92 > ...`:
-            ///     Thread: Thread 3 (Dispatch queue: com.nuebling.mac-mouse-fix.helper.scroll)
-            ///     Message: BUG IN CLIENT OF LIBPLATFORM: Unlock of an `os_unfair_lock` not owned by current thread
-            ///     Possibly related: Thread 1 (Dispatch queue: com.apple.main-thread) was currently at `ButtonInputReceiver.m:142 > DeviceManager.m:71 > Device.m:258 (-[Device wrapsIOHIDDevice:]+0`)
-            ///     Interpretations:
-            ///         - Maybe Thread 1 and 3 tried to access the device at the same time causing issues. However thread 1 wasn't actually inside IOHIDDeviceGetProperty() according to the crash report. It was just at `-[Device wrapsIOHIDDevice:]+0`, which is right *before* accessing the device, but not accessing it, yet I think. Also, the presence of the `os_unfair_lock` suggests that IOHIDDevice *is* supposed to be thread-safe, but just had a bug right there.
-            ///             - After thinking a bit more, this makes no sense, looking at IOHIDDeviceRef.c > IOHIDDeviceGetProperty(), it just locks at the start and unlocks at the end and I have no clue how the unlocking thread can end up being different from the locking one.
-            ///         - Claude suggests that the IOHIDDevice must be memory-corrupted or used-after-free/used-after-close. Seems sorta plausible since CGEventGetSendingDevice() never cleans up its cache and could theoretically return pointer to a IOHIDDeviceRef that has disconnected. ... But it seems sort of unlikely that the device would get disconnected between sending the scroll events and the processing of the scroll events (which we're doing here). Also just because the device is disconnected it shouldn't mean that the whole IOHIDDeviceRef instance becomes memory-corrupted. I think it should still be safe to use, just fail read/write operations and so on (but I haven't tested this). Perhaps it's a thread-safety bug inside IOHIDDevice. When we put all this stuff on one 'IOThread' that should help with this bug. Also see this conversation with Claude: https://claude.ai/share/77e528bf-2908-4fa0-a14c-4a924b0198de
-            
-            DDLogDebug("Scroll.m: Device sending scroll: %@ %@", manufacturer, name);
-        }
+        /// Don't dereference the sending IOHIDDevice on this asynchronous queue.
+        /// A device can disappear between the event tap and this block running;
+        /// accessing its properties here has previously crashed in IOHID. The sender
+        /// ID is copied into the CGEvent and remains safe to log for diagnostics.
+        int64_t senderID = CGEventGetIntegerValueField(event, (CGEventField)kMFCGEventFieldSenderID);
+        DDLogDebug("Scroll.m: sender ID for scroll event: %lld", senderID);
     }
 
     /// Get axis

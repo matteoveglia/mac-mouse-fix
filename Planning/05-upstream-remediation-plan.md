@@ -197,6 +197,7 @@ Fork PR #1 landed the synthetic KVM, signed-delta, axis-control, and app-scope i
 - Re-test Firefox, Chrome/Google Maps, Preview, Mission Control, iPhone Mirroring, Remote Desktop, and Java/Electron apps.
 - Add a state-reset test for heavy scroll, app switch, helper restart, and device hot-unplug so momentum cannot survive into the next session.
 - The Scroll event tap now has a null-safe create/enable/disable/recovery path; run the P0 manual matrix before claiming scroll reliability.
+- The asynchronous scroll diagnostics no longer dereference a sending `IOHIDDeviceRef`: that object can be stale after a disconnect, and the existing crash signature was in `IOHIDDeviceGetProperty`. Diagnostics log the event's copied sender ID instead. The real device disconnect/reconnect matrix remains an explicit runtime gate.
 - Separate a true scroll-path regression from a dead event tap or an app-specific incompatibility before changing math.
 
 ### WP4 — Logitech and other device input

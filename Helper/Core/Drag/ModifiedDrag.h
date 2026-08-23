@@ -31,7 +31,7 @@ typedef enum {
 
 typedef struct {
     
-    CFMachPortRef eventTap;
+    CFMachPortRef _Nullable eventTap;
     int64_t usageThreshold;
     
     NSDictionary *effectDict;

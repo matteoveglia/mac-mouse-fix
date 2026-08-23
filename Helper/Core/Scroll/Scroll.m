@@ -27,6 +27,7 @@
 #import "Actions.h"
 #import "EventUtility.h"
 #import "MathObjc.h"
+#import "MFEventTapHandle.h"
 
 @import IOKit;
 #import "MFHIDEventImports.h"
@@ -41,10 +42,8 @@
 
 #pragma mark - Variables - static
 
-static CFMachPortRef _eventTap;
-static CFRunLoopSourceRef _eventTapSource;
+static MFEventTapHandle *_eventTapHandle;
 static CGEventSourceRef _eventSource;
-static BOOL _eventTapShouldBeEnabled;
 static CGEventRef eventTapCallback(CGEventTapProxy proxy, CGEventType type, CGEventRef event, void *userInfo);
 
 static dispatch_queue_t _scrollQueue;
@@ -59,60 +58,23 @@ static AXUIElementRef _systemWideAXUIElement; // TODO: should probably move this
 /// MARK: Event tap lifecycle
 
 static BOOL createScrollEventTap(void) {
-    if (_eventTap != NULL) return YES;
+    if (_eventTapHandle != nil) return YES;
 
     CGEventMask mask = CGEventMaskBit(kCGEventScrollWheel);
-    CFMachPortRef eventTap = CGEventTapCreate(kCGHIDEventTap,
-                                              kCGHeadInsertEventTap,
-                                              kCGEventTapOptionDefault,
-                                              mask,
-                                              eventTapCallback,
-                                              NULL);
-    if (eventTap == NULL) {
-        DDLogError("Scroll.m: failed to create scroll event tap. Check Accessibility permission before retrying.");
-        return NO;
-    }
-
-    CFRunLoopSourceRef runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, eventTap, 0);
-    if (runLoopSource == NULL) {
-        DDLogError("Scroll.m: failed to create run-loop source for scroll event tap.");
-        CFRelease(eventTap);
-        return NO;
-    }
-
-    /// Scroll interception is controlled by SwitchMaster, so keep a newly-created tap disabled until startReceiving.
-    CGEventTapEnable(eventTap, false);
-    CFRunLoopAddSource(CFRunLoopGetCurrent(), runLoopSource, kCFRunLoopCommonModes);
-    _eventTap = eventTap;
-    _eventTapSource = runLoopSource;
+    _eventTapHandle = [MFEventTapHandle handleWithLocation:kCGHIDEventTap mask:mask options:kCGEventTapOptionDefault placement:kCGHeadInsertEventTap callback:eventTapCallback runLoop:CFRunLoopGetMain() mode:kCFRunLoopCommonModes label:@"Scroll"];
+    if (_eventTapHandle == nil) return NO;
 
     DDLogInfo("Scroll.m: created scroll event tap");
     return YES;
 }
 
 static BOOL scrollEventTapIsEnabled(void) {
-    return _eventTap != NULL && CGEventTapIsEnabled(_eventTap);
+    return _eventTapHandle.enabled;
 }
 
 static BOOL setScrollEventTapEnabled(BOOL enabled, const char *reason) {
-    _eventTapShouldBeEnabled = enabled;
-    NSString *operation = enabled ? @"enable" : @"disable";
     NSString *logReason = reason ? [NSString stringWithUTF8String:reason] : @"unknown";
-
-    if (_eventTap == NULL) {
-        DDLogError("Scroll.m: can't %@ scroll event tap because it was not created. reason=%@", operation, logReason);
-        return NO;
-    }
-
-    if (scrollEventTapIsEnabled() == enabled) return YES;
-
-    CGEventTapEnable(_eventTap, enabled);
-    if (scrollEventTapIsEnabled() != enabled) {
-        DDLogError("Scroll.m: failed to %@ scroll event tap. reason=%@", operation, logReason);
-        return NO;
-    }
-
-    return YES;
+    return [_eventTapHandle setEnabled:enabled reason:logReason];
 }
 
 #pragma mark - Variables - dynamic
@@ -220,8 +182,8 @@ void resetState_Unsafe(void) {
 }
 
 + (void)shutdown {
-    _eventTapShouldBeEnabled = NO;
-    [ModificationUtility invalidateEventTap:&_eventTap source:&_eventTapSource runLoop:CFRunLoopGetMain() mode:kCFRunLoopCommonModes];
+    [_eventTapHandle invalidate];
+    _eventTapHandle = nil;
 }
 
 + (BOOL)isReceiving {
@@ -323,7 +285,7 @@ static CGEventRef eventTapCallback(CGEventTapProxy proxy, CGEventType type, CGEv
 
         DDLogDebug("Scroll.m: eventTap was disabled by %@", type == kCGEventTapDisabledByTimeout ? @"timeout. Re-enabling." : @"user input.");
         
-        if (type == kCGEventTapDisabledByTimeout && _eventTapShouldBeEnabled) {
+        if (type == kCGEventTapDisabledByTimeout && _eventTapHandle.desiredEnabled) {
             setScrollEventTapEnabled(YES, "eventTapDisabledByTimeout");
         }
         

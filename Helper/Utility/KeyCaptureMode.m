@@ -10,6 +10,7 @@
 #import "KeyCaptureMode.h"
 #import <Cocoa/Cocoa.h>
 #import "ModificationUtility.h"
+#import "MFEventTapHandle.h"
 #import "MFMessagePort.h"
 #import "Logging.h"
 
@@ -20,38 +21,22 @@
 ///  When the user records keyboard shortcuts in the mainApp we wanted to use eventTaps for that. I think otherwise certain keys weren't captured. Not sure though. The helper already has permissions to use eventTaps so the mainApp delegates the capturing to the helper.
 
 
-CFMachPortRef _keyCaptureEventTap;
-static CFRunLoopSourceRef _keyCaptureEventTapSource;
+static MFEventTapHandle *_keyCaptureEventTapHandle;
 static BOOL _keyCaptureModeEnabled;
 
 static BOOL setKeyCaptureEventTapEnabled(BOOL enabled, const char *reason) {
-    NSString *operation = enabled ? @"enable" : @"disable";
     NSString *logReason = reason ? [NSString stringWithUTF8String:reason] : @"unknown";
-
-    if (_keyCaptureEventTap == NULL) {
-        DDLogError("KeyCaptureMode: can't %@ key-capture event tap because it was not created. reason=%@", operation, logReason);
-        return NO;
-    }
-
-    if (CGEventTapIsEnabled(_keyCaptureEventTap) == enabled) return YES;
-
-    CGEventTapEnable(_keyCaptureEventTap, enabled);
-    if (CGEventTapIsEnabled(_keyCaptureEventTap) != enabled) {
-        DDLogError("KeyCaptureMode: failed to %@ key-capture event tap. reason=%@", operation, logReason);
-        return NO;
-    }
-
-    return YES;
+    return [_keyCaptureEventTapHandle setEnabled:enabled reason:logReason];
 }
 
 + (void)enable {
     
     DDLogInfo("Enabling keyCaptureMode");
     
-    if (_keyCaptureEventTap == nil) {
-        _keyCaptureEventTap = [ModificationUtility createEventTapWithLocation:kCGHIDEventTap mask:CGEventMaskBit(kCGEventKeyDown) | CGEventMaskBit(NSEventTypeSystemDefined) option:kCGEventTapOptionDefault placement:kCGHeadInsertEventTap callback:keyCaptureModeCallback runLoop:CFRunLoopGetMain() source:&_keyCaptureEventTapSource];
+    if (_keyCaptureEventTapHandle == nil) {
+        _keyCaptureEventTapHandle = [MFEventTapHandle handleWithLocation:kCGHIDEventTap mask:CGEventMaskBit(kCGEventKeyDown) | CGEventMaskBit(NSEventTypeSystemDefined) options:kCGEventTapOptionDefault placement:kCGHeadInsertEventTap callback:keyCaptureModeCallback runLoop:CFRunLoopGetMain() mode:kCFRunLoopCommonModes label:@"KeyCaptureMode"];
     }
-    if (_keyCaptureEventTap == NULL) {
+    if (_keyCaptureEventTapHandle == nil) {
         DDLogError("KeyCaptureMode: can't enable key capture because its event tap was not created.");
         _keyCaptureModeEnabled = NO;
         return;
@@ -70,14 +55,15 @@ static BOOL setKeyCaptureEventTapEnabled(BOOL enabled, const char *reason) {
 
 + (void)shutdown {
     _keyCaptureModeEnabled = NO;
-    [ModificationUtility invalidateEventTap:&_keyCaptureEventTap source:&_keyCaptureEventTapSource runLoop:CFRunLoopGetMain() mode:kCFRunLoopCommonModes];
+    [_keyCaptureEventTapHandle invalidate];
+    _keyCaptureEventTapHandle = nil;
 }
 
 CGEventRef  _Nullable keyCaptureModeCallback(CGEventTapProxy proxy, CGEventType type, CGEventRef event, void *userInfo) {
 
     if (type == kCGEventTapDisabledByTimeout || type == kCGEventTapDisabledByUserInput) {
         DDLogWarn("KeyCaptureMode event tap disabled by %@.", type == kCGEventTapDisabledByTimeout ? @"timeout" : @"user input");
-        if (type == kCGEventTapDisabledByTimeout && _keyCaptureModeEnabled && _keyCaptureEventTap != NULL) {
+        if (type == kCGEventTapDisabledByTimeout && _keyCaptureModeEnabled && _keyCaptureEventTapHandle.valid) {
             if (!setKeyCaptureEventTapEnabled(YES, "eventTapDisabledByTimeout")) {
                 _keyCaptureModeEnabled = NO;
             }

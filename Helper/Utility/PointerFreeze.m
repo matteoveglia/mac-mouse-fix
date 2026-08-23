@@ -19,6 +19,7 @@
 #import "CGSConnection.h"
 #import "ModificationUtility.h"
 #import "GlobalEventTapThread.h"
+#import "MFEventTapHandle.h"
 #import "NSScreen+Additions.h"
 @import CoreMedia;
 
@@ -37,10 +38,8 @@ static NSCursor *_puppetCursor;
 static NSImageView *_puppetCursorView;
 static CGDirectDisplayID _display;
 
-static CFMachPortRef _eventTap;
-static CFRunLoopSourceRef _eventTapSource;
-static Boolean _coolEventTapIsEnabled; /// CGEventTapIsEnabled() is pretty slow, so we're using this instead
-static BOOL _eventTapShouldBeEnabled;
+static MFEventTapHandle *_eventTapHandle;
+static BOOL _coolEventTapIsEnabled; /// Avoid querying the tap from the high-frequency pointer callback.
 
 static dispatch_queue_t _queue;
 
@@ -48,27 +47,10 @@ static CFTimeInterval _lastEventTimestamp;
 static int64_t _lastEventDelta;
 
 static BOOL setPointerFreezeEventTapEnabled(BOOL enabled, const char *reason) {
-    _eventTapShouldBeEnabled = enabled;
-    NSString *operation = enabled ? @"enable" : @"disable";
     NSString *logReason = reason ? [NSString stringWithUTF8String:reason] : @"unknown";
-
-    if (_eventTap == NULL) {
-        DDLogError("PointerFreeze: can't %@ event tap because it was not created. reason=%@", operation, logReason);
-        _coolEventTapIsEnabled = false;
-        return NO;
-    }
-
-    if (CGEventTapIsEnabled(_eventTap) != enabled) {
-        CGEventTapEnable(_eventTap, enabled);
-    }
-
-    _coolEventTapIsEnabled = CGEventTapIsEnabled(_eventTap);
-    if (_coolEventTapIsEnabled != enabled) {
-        DDLogError("PointerFreeze: failed to %@ event tap. reason=%@", operation, logReason);
-        return NO;
-    }
-
-    return YES;
+    BOOL result = [_eventTapHandle setEnabled:enabled reason:logReason];
+    _coolEventTapIsEnabled = _eventTapHandle.enabled;
+    return result;
 }
 
 /// + initialize
@@ -103,15 +85,14 @@ static BOOL setPointerFreezeEventTapEnabled(BOOL enabled, const char *reason) {
         
         /// Setup eventTap
         ///     Using a listenOnly tap would be more appropriate but they sometimes behave weirdly
-        _eventTap = [ModificationUtility createEventTapWithLocation:kCGHIDEventTap mask:CGEventMaskBit(kCGEventMouseMoved) | CGEventMaskBit(kCGEventLeftMouseDragged) | CGEventMaskBit(kCGEventRightMouseDragged) | CGEventMaskBit(kCGEventOtherMouseDragged) option:kCGEventTapOptionDefault placement:kCGHeadInsertEventTap callback:mouseMovedCallback runLoop:GlobalEventTapThread.runLoop source:&_eventTapSource];
-        if (_eventTap == NULL) {
+        _eventTapHandle = [MFEventTapHandle handleWithLocation:kCGHIDEventTap mask:CGEventMaskBit(kCGEventMouseMoved) | CGEventMaskBit(kCGEventLeftMouseDragged) | CGEventMaskBit(kCGEventRightMouseDragged) | CGEventMaskBit(kCGEventOtherMouseDragged) options:kCGEventTapOptionDefault placement:kCGHeadInsertEventTap callback:mouseMovedCallback runLoop:GlobalEventTapThread.runLoop mode:kCFRunLoopCommonModes label:@"PointerFreeze"];
+        if (_eventTapHandle == nil) {
             DDLogError("PointerFreeze: event tap is unavailable until creation succeeds.");
         }
     }
 }
 
 + (void)shutdown {
-    _eventTapShouldBeEnabled = NO;
     _coolEventTapIsEnabled = false;
 
     /// Helper termination can interrupt a modified drag while its puppet cursor
@@ -130,7 +111,8 @@ static BOOL setPointerFreezeEventTapEnabled(BOOL enabled, const char *reason) {
         });
     }
 
-    [ModificationUtility invalidateEventTap:&_eventTap source:&_eventTapSource runLoop:GlobalEventTapThread.runLoop mode:kCFRunLoopCommonModes];
+    [_eventTapHandle invalidate];
+    _eventTapHandle = nil;
 }
 
 // MARK: Interface
@@ -156,7 +138,7 @@ static BOOL setPointerFreezeEventTapEnabled(BOOL enabled, const char *reason) {
 + (void)freezeAtPosition:(CGPoint)origin keepPointerMoving:(BOOL)keepPointerMoving {
     /// Internal helper function
     
-    if (_queue == NULL || _eventTap == NULL) {
+    if (_queue == NULL || !_eventTapHandle.valid) {
         DDLogError("PointerFreeze: can't freeze pointer before load_Manual creates its queue and event tap.");
         return;
     }
@@ -233,19 +215,17 @@ CGEventRef _Nullable mouseMovedCallback(CGEventTapProxy proxy, CGEventType type,
 
         if (type == kCGEventTapDisabledByTimeout) {
             dispatch_async(_queue, ^{
-                if (!_eventTapShouldBeEnabled) {
+                if (!_eventTapHandle.desiredEnabled) {
                     return;
                 }
 
 //                assert(false); /// Not sure this ever times out
                 if (!setPointerFreezeEventTapEnabled(YES, "eventTapDisabledByTimeout")) {
-                    _eventTapShouldBeEnabled = NO;
                     [PointerFreeze unfreeze];
                 }
             });
         } else if (type == kCGEventTapDisabledByUserInput) {
             dispatch_async(_queue, ^{
-                _eventTapShouldBeEnabled = NO;
                 _coolEventTapIsEnabled = false;
                 [PointerFreeze unfreeze];
             });

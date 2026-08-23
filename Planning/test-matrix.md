@@ -11,8 +11,8 @@ checks remain explicitly open.
 | Debug App and embedded Helper | Pass | Signed `xcodebuild -scheme App -configuration Debug -destination 'platform=macOS' build` with Xcode 27. |
 | Regression harness | Pass | Unsigned `xcodebuild -scheme Tests -configuration Debug -destination 'platform=macOS' build CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO`. The target is a harness, not XCTest. |
 | Static analysis | Pass with legacy findings | `xcodebuild -scheme App ... analyze` completed. Existing warnings are tracked separately; none came from the current cache, helper-service, key-capture, or pointer-freeze changes. |
+| Helper enable | Pass | A native pointer click in the signed Debug app started the ServiceManagement job and helper process; Buttons and Scrolling became available. |
 | Helper disable | Pass | In the signed Debug app, the General toggle disabled Buttons and Scrolling, removed the ServiceManagement job, and terminated the helper process. |
-| Background Item disabled in System Settings | Expected OS block observed | `sfltool dumpbtm` reports the Debug app and embedded helper as disabled. An enable request leaves the helper absent until the user re-enables the Background Item in System Settings; the app was returned to off afterward. |
 | Settings navigation | Pass | One-click navigation between tabs was verified in the signed Debug app. |
 | Device hot-unplug | Manual pending | With MMF enabled: use a side button, unplug/reconnect the mouse, then confirm the same button still remaps and the helper remains running. |
 | Pointer-freeze / two-finger drag | Manual pending | Start the gesture, move briefly, then release. The real cursor must reappear and move normally. |

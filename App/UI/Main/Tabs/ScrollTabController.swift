@@ -32,6 +32,9 @@ class ScrollTabController: NSViewController {
     /// Outlets
     
     @IBOutlet weak var masterStack: CollapsingStackView!
+    @IBOutlet weak var generalTitle: NSTextField!
+    @IBOutlet weak var generalDivider: NSView!
+    @IBOutlet weak var smoothnessSection: NSStackView!
     
 
     
@@ -87,6 +90,19 @@ class ScrollTabController: NSViewController {
         }
     }
 
+    /// Keep the general toggles together at the top, followed by the two
+    /// axis-specific settings sections. This is done before any collapsible
+    /// sections are initialized, so the existing stack animation machinery
+    /// continues to own the views normally.
+    private func arrangeSections() {
+        guard masterStack.arrangedSubviews.contains(smoothnessSection),
+              masterStack.arrangedSubviews.contains(generalDivider) else { return }
+
+        masterStack.removeArrangedSubview(smoothnessSection)
+        let dividerIndex = masterStack.arrangedSubviews.firstIndex(of: generalDivider) ?? 0
+        masterStack.insertArrangedSubview(smoothnessSection, at: dividerIndex + 1)
+    }
+
     /// Did appear
     
     override func viewDidAppear() {
@@ -118,6 +134,8 @@ class ScrollTabController: NSViewController {
     
     override func viewDidLoad() {
         super.viewDidLoad()
+
+        arrangeSections()
 
         /// Existing installations only have the original shared settings.
         /// Seed the axis-specific settings from those values once so the new

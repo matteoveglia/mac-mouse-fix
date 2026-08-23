@@ -194,6 +194,7 @@ Fork PR #1 landed the synthetic KVM, signed-delta, axis-control, and app-scope i
 - Trace one input from hardware or virtual source through capture, transformation, acceleration/smoothing, axis scaling, and output injection.
 - Make signed deltas, zero deltas, low smoothness, high polling rate, axis-specific configuration, and synthetic timestamps explicit test cases.
 - Verify that `senderID == 0` and unattached input do not accidentally admit unsupported real hardware events; cover Wacom/tablet input, no-device startup, Accessibility denial, and hot-plug after a failed HID lookup.
+- The shared sender-ID-to-`IOHIDDeviceRef` cache now serializes all reads and misses because it is called from both event-tap and asynchronous scroll processing. This removes concurrent `NSMutableDictionary` mutation while preserving cached positive and negative lookups.
 - Compare configured speed with the system scroll-speed setting on Razer and Logitech devices; do not assume the system value is a device-independent multiplier.
 - Re-test Firefox, Chrome/Google Maps, Preview, Mission Control, iPhone Mirroring, Remote Desktop, and Java/Electron apps.
 - Add a state-reset test for heavy scroll, app switch, helper restart, and device hot-unplug so momentum cannot survive into the next session.

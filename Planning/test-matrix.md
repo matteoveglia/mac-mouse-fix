@@ -16,7 +16,7 @@ checks remain explicitly open.
 | Settings navigation | Pass | One-click navigation between tabs was verified in the signed Debug app. |
 | Device hot-unplug | Manual pending | With MMF enabled: use a side button, unplug/reconnect the mouse, then confirm the same button still remaps and the helper remains running. |
 | Pointer-freeze / two-finger drag | Manual pending | Start the gesture, move briefly, then release. The real cursor must reappear and move normally. |
-| Scroll and virtual/remote input | Manual pending | Check ordinary and fast scrolling, browser maps, iPhone Mirroring/remote input if available, then helper restart. Do not assess horizontal scaling: it is intentionally not part of this fork. |
+| Scroll and virtual/remote input | Partial pass | Fast scrolling works with a mouse remote to this machine. Ordinary scrolling, browser maps, iPhone Mirroring/other remote sources if available, and helper restart remain pending. Do not assess horizontal scaling: it is intentionally not part of this fork. |
 | Dock swipes | Manual pending | Test normal/inverted drag into Spaces, Mission Control, Show Desktop, Launchpad, multiple displays, reversals, and releases at low/high velocity. |
 | Accessibility / lifecycle | Manual pending | Cold launch, grant/revoke Accessibility, disable/re-enable, sleep/wake, login launch, fast-user switching, and device disconnect/reconnect. |
 | Release distribution | Blocked by product decision | The fork retains upstream `com.nuebling.*` IDs and keychain group. Choose owned bundle IDs and keychain migration before signed Release distribution. |

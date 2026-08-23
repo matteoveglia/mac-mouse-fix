@@ -31,6 +31,10 @@ typedef void (^MFHIDPPDeadlineHandler)(void);
 
 @property (nonatomic, readonly) MFHIDPPClientState state;
 @property (nonatomic, copy) void (^ _Nullable unsolicitedReportHandler)(MFHIDPPFrame *frame);
+/// Called on the client queue when the transport delivers bytes that are not
+/// a valid supported HID++ frame. This keeps malformed/unsupported hardware
+/// observable without completing an unrelated in-flight request.
+@property (nonatomic, copy) void (^ _Nullable invalidReportHandler)(NSData *report, NSError *error);
 
 - (instancetype)initWithTransport:(id<MFHIDPPTransport>)transport
                          scheduler:(id<MFHIDPPDeadlineScheduler> _Nullable)scheduler;

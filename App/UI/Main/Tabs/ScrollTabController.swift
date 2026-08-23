@@ -204,16 +204,22 @@ class ScrollTabController: NSViewController {
         guard let snapshot = ApplicationPolicySnapshot.snapshotFromLegacyScope(scope, applications: applications) else {
             return false
         }
-        let encoded = snapshot.dictionaryRepresentation
+        var snapshotToStore = snapshot
         if let current = config("Scroll.applicationPolicy") as? NSDictionary {
-            /// Preserve path/wrapper/process rules authored by a newer UI or
-            /// by an administrator. The current bundle-list editor must not
-            /// silently flatten a canonical policy it cannot represent.
+            /// The current editor owns the default and bundle-ID rule subset.
+            /// Preserve advanced selectors authored by a newer UI or an
+            /// administrator while still making this UI's changes effective.
             if let currentSnapshot = ApplicationPolicySnapshot.snapshotFromDictionary(current), currentSnapshot.legacyScope == nil {
-                return false
+                let advancedRules = currentSnapshot.rules.filter({ $0.matchKind != .bundleIdentifier })
+                guard let merged = ApplicationPolicySnapshot(defaultEffect: snapshot.defaultEffect,
+                                                             rules: snapshot.rules + advancedRules) else {
+                    return false
+                }
+                snapshotToStore = merged
             }
-            if current.isEqual(encoded) { return false }
         }
+        let encoded = snapshotToStore.dictionaryRepresentation
+        if let current = config("Scroll.applicationPolicy") as? NSDictionary, current.isEqual(encoded) { return false }
         setConfig("Scroll.applicationPolicy", encoded)
         return true
     }

@@ -192,8 +192,14 @@ static char kMFHIDPPClientQueueKey;
     [self performAsynchronously:^{
         if (self.state != kMFHIDPPClientStateRunning) return;
 
-        MFHIDPPFrame *frame = [MFHIDPPFrame frameWithReport:report error:NULL];
-        if (frame == nil) return;
+        NSError *parseError = nil;
+        MFHIDPPFrame *frame = [MFHIDPPFrame frameWithReport:report error:&parseError];
+        if (frame == nil) {
+            if (self.invalidReportHandler != nil && parseError != nil) {
+                self.invalidReportHandler([report copy], parseError);
+            }
+            return;
+        }
 
         if ([self isRetiredIdentity:frame.identity]) {
             return;

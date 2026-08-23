@@ -76,6 +76,26 @@ int MFHIDPPRunFixtureSmokeTests(void) {
         error = nil;
         MFHIDPPCheck([MFHIDPPFrame frameWithReport:unsupported error:&error] == nil && MFHIDPPErrorIs(error, kMFHIDPPErrorUnsupportedReport), @"unsupported report ID is rejected", &failures);
 
+        MFHIDPPManualScheduler *invalidScheduler = [MFHIDPPManualScheduler new];
+        MFHIDPPFixtureTransport *invalidTransport = [[MFHIDPPFixtureTransport alloc] initWithExchanges:fixtures scheduler:invalidScheduler responseDelay:0.0];
+        MFHIDPPClient *invalidClient = [[MFHIDPPClient alloc] initWithTransport:invalidTransport scheduler:invalidScheduler];
+        dispatch_semaphore_t invalidSemaphore = dispatch_semaphore_create(0);
+        __block NSError *observedInvalidError = nil;
+        __block NSData *observedInvalidReport = nil;
+        invalidClient.invalidReportHandler = ^(NSData *report, NSError *parseError) {
+            observedInvalidReport = report;
+            observedInvalidError = parseError;
+            dispatch_semaphore_signal(invalidSemaphore);
+        };
+        [invalidClient start];
+        [invalidTransport injectReport:badShort];
+        MFHIDPPCheck(MFHIDPPWait(invalidSemaphore)
+                       && [observedInvalidReport isEqualToData:badShort]
+                       && MFHIDPPErrorIs(observedInvalidError, kMFHIDPPErrorMalformedReport),
+                     @"malformed transport reports are observable without completing a request",
+                     &failures);
+        [invalidClient stop];
+
         MFHIDPPManualScheduler *scheduler = [MFHIDPPManualScheduler new];
         MFHIDPPFixtureTransport *transport = [[MFHIDPPFixtureTransport alloc] initWithExchanges:fixtures scheduler:scheduler responseDelay:0.0];
         MFHIDPPClient *client = [[MFHIDPPClient alloc] initWithTransport:transport scheduler:scheduler];

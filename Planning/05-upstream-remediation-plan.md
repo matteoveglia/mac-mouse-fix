@@ -175,7 +175,8 @@ Relevant prior art is [#1920](https://github.com/noah-nuebling/mac-mouse-fix/pul
 Audit and then centralize the lifecycle of every event tap. The audit must include `Helper/Core/ModificationUtility.m`, `Helper/Core/Buttons/ButtonInputReceiver.m`, `Helper/Core/Scroll/Scroll.m`, `Helper/Core/PointerFreeze.m`, `Helper/Core/GlobalEventTapThread.m`, and any switch/master input path.
 
 - Completed in the current increment: `Scroll`, `ButtonInputReceiver`, `Modifiers`, `ModifiedDrag`, `PointerFreeze`, `KeyCaptureMode`, and `ModificationUtility` reject failed tap/source creation, avoid `CGEventTapIsEnabled`/`CGEventTapEnable` on null taps, and do not re-enable after a caller has requested stop. New taps are disabled before their run-loop source is attached.
-- Remaining: retain the source and run loop in an owned tap handle; serialize lifecycle operations; invalidate/remove/release on helper shutdown; and introduce a process-wide post-Accessibility readiness gate for message handling.
+- Completed in the follow-up increment: the helper now admits only health-check, Accessibility-check, and termination messages until all post-Accessibility modules are initialized; configuration, device, remap, and event-tap commands are rejected during the startup gap.
+- Remaining: retain the source and run loop in an owned tap handle; serialize lifecycle operations; and invalidate/remove/release on helper shutdown.
 - Treat a null tap, invalid Mach port, or missing run-loop source as a recoverable state with structured logging, not as a valid tap.
 - Make enable/disable/re-enable idempotent and serialized. Remove sources before releasing taps; never re-enable a tap after ownership has ended.
 - Handle Accessibility/TCC denial, revocation, fast user switching, sleep/wake, and helper registration failure with a retry/back-off path and an accurate menu-bar state.

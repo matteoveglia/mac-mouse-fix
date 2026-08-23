@@ -226,6 +226,17 @@ static CFDataRef _Nullable didReceiveMessage(CFMessagePortRef port, SInt32 messa
         }
 
     #elif IS_HELPER
+
+        /// The message port starts before the helper's Accessibility check, while most input modules
+        /// intentionally start only afterwards. Keep the small pre-check protocol usable but reject
+        /// requests which would touch configuration, devices, remaps, or event taps too early.
+        BOOL isPreCheckSafeMessage = [message isEqual:@"getBundleVersion"]
+            || [message isEqual:@"terminate"]
+            || [message isEqual:@"checkAccessibility"];
+        if (![AccessibilityCheck isPostCheckInitializationComplete] && !isPreCheckSafeMessage) {
+            DDLogWarn("Ignoring helper message %@ before post-Accessibility initialization completes.", message);
+            return NULL;
+        }
         
         if ((0)) ;
         xxx(@"configFileChanged") {

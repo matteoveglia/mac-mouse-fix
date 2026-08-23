@@ -31,6 +31,8 @@
 
 @implementation AccessibilityCheck
 
+static BOOL _postCheckInitializationComplete;
+
 /// Load
 
 + (void)load {
@@ -205,6 +207,10 @@
         [PointerFreeze load_Manual];
         
         [MenuBarItem load_Manual];
+
+        /// The message port is available before the Accessibility check so the main app can request it.
+        /// Do not let messages drive post-check modules until every event-tap owner is initialized.
+        _postCheckInitializationComplete = YES;
         
         /// Send 'started' message to mainApp
         /// Notes:
@@ -259,6 +265,10 @@
 //            DDLogDebug("License check result - state: %d, currentDay: %d, trialDays: %d, error: %@", licensing.state, licensing.daysOfUse, licensing.trialDays, error);
 //        }];
     }
+}
+
++ (BOOL)isPostCheckInitializationComplete {
+    return _postCheckInitializationComplete;
 }
 
 + (Boolean)checkAccessibilityAndUpdateSystemSettings {

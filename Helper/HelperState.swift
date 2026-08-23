@@ -85,4 +85,13 @@ import CoreGraphics
         guard let device = DeviceManager.attachedDevice(with: IOHIDDevice) else { return }
         activeDevice = device
     }
+
+    /// A disconnected device must not remain the preferred fallback. Keeping
+    /// it here can make later configuration and remap decisions refer to a
+    /// stale IOHIDDevice after the DeviceManager has removed it.
+    @objc(clearActiveDeviceIfRemoved:)
+    func clearActiveDeviceIfRemoved(_ device: Device) {
+        guard _activeDevice === device else { return }
+        activeDevice = nil
+    }
 }

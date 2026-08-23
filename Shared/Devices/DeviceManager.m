@@ -287,9 +287,14 @@ static void handleDeviceRemoval(void *context, IOReturn result, void *sender, IO
         DDLogDebug("Device was removed but it wasn't attached to Mac Mouse Fix: %@", device);
         
     } else {
-        
+
         /// Remove
         [_attachedDevices removeObject:attachedDevice];
+
+        /// Clear helper state after the array update so observers can only
+        /// fall back to a device that is still attached. `attachedDevice`
+        /// remains alive through this callback's strong local reference.
+        [HelperState.shared clearActiveDeviceIfRemoved:attachedDevice];
         
         /// Reset cache
         

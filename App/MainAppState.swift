@@ -116,11 +116,19 @@ import ReactiveSwift
         }
     }
     @objc func disable() {
-        
-        /// What happens if we call `enableHelperAsUserAgent(false, ...` directly? Will it break things?
-        
-        HelperServices.enableHelperAsUserAgent(false, onComplete: nil)
-        observer.send(value: false)
+        disable(onComplete: { _ in })
+    }
+
+    func disable(onComplete: @escaping (NSError?) -> Void) {
+        HelperServices.enableHelperAsUserAgent(false) { swiftError in
+            let error = swiftError as NSError?
+            DispatchQueue.main.async {
+                if error == nil {
+                    self.observer.send(value: false)
+                }
+                onComplete(error)
+            }
+        }
     }
     func isEnabled() -> Bool { // TODO: Think about returning `latest` here or renaming the `isEnabled_Uncached`
         HelperServices.helperIsActive()

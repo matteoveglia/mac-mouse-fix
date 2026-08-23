@@ -185,6 +185,15 @@
             /// Enable helper 
             ///     Do this on some global queue. Xcode complains if you do this on mainThread because it can lead to unresponsive UI.
             NSError *error = [self enableHelper_SM: enable];
+
+            /// `SMAppService -unregisterAndReturnError:` removes the login-item
+            /// registration, but does not consistently terminate an already-running
+            /// agent on current macOS releases. Ask the remaining helper instance to
+            /// terminate only after unregistering succeeded; its SIGTERM path restores
+            /// input handling before exit.
+            if (!enable && error == nil) {
+                [HelperServices terminateAllHelperInstances];
+            }
             
             /// Call onComplete
             if (onComplete != nil) onComplete(error);

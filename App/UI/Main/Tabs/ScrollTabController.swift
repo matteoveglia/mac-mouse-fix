@@ -118,6 +118,7 @@ class ScrollTabController: NSViewController {
     @IBOutlet weak var restoreDefaultModsButton: NSButton!
 
     private var trackpadScopeRow: NSStackView?
+    private var trackpadScopeRowHeightConstraint: NSLayoutConstraint?
     private var trackpadAppsEditorWindow: NSWindow?
     private var trackpadAppsTableView: NSTableView?
     private let trackpadAppsTableDataSource = TrackpadAppsTableDataSource()
@@ -175,7 +176,7 @@ class ScrollTabController: NSViewController {
 
         let compactScopeRow = NSStackView(views: [scopeSelectionRow, trackpadAppsButton])
         compactScopeRow.orientation = .vertical
-        compactScopeRow.alignment = .leading
+        compactScopeRow.alignment = .trailing
         compactScopeRow.spacing = 8
         compactScopeRow.distribution = .fill
         trackpadScopeRow = compactScopeRow
@@ -185,7 +186,9 @@ class ScrollTabController: NSViewController {
         scopeStack.removeFromSuperview()
         trackpadSection.insertArrangedSubview(compactScopeRow, at: scopeIndex)
         compactScopeRow.widthAnchor.constraint(equalTo: trackpadSection.widthAnchor).isActive = true
-        compactScopeRow.heightAnchor.constraint(equalToConstant: 59).isActive = true
+        let scopeRowHeightConstraint = compactScopeRow.heightAnchor.constraint(equalToConstant: 59)
+        scopeRowHeightConstraint.isActive = true
+        trackpadScopeRowHeightConstraint = scopeRowHeightConstraint
         scopeSelectionRow.widthAnchor.constraint(equalTo: compactScopeRow.widthAnchor).isActive = true
     }
 
@@ -200,8 +203,7 @@ class ScrollTabController: NSViewController {
 
         trackpadAppsButton.isHidden = !isRestricted
         trackpadAppsButton.isEnabled = isRestricted
-        trackpadAppsSummary.stringValue = ""
-        trackpadAppsClearButton.isHidden = true
+        trackpadScopeRowHeightConstraint?.constant = isRestricted ? 59 : 31
         trackpadAppsTableDataSource.bundleIDs = apps
         trackpadAppsTableView?.reloadData()
     }

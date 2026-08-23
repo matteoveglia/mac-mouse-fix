@@ -80,35 +80,35 @@ import Foundation
             }
             
         } catch {
-            
+
             /// Storing failed - this shouldn't happen normally.
             /// Notes:
             /// - We used to hit an `assert(false)` here, crashing Debug builds whenever the keychain misbehaved. Observed on macOS 27 beta when activating a license: SecItem calls fail in builds without the `keychain-access-groups` entitlement (which we removed to allow profile-less dev signing), and `kSecAttrSynchronizable` may be flaky on beta OSes in general.
             /// - Recovery: Abandon the synchronizable (iCloud-synced) item and fall back to a purely local one. Loses cross-device sync, but keeps working.
             /// - If recovery also fails we just log. Losing stored values is better than crashing.
-            
+
             DDLogError("SecureStorage - Failed to store value for keyPath: \(keyPath). Error: \(error)")
-            
+
             guard synchronizable else {
                 DDLogError("SecureStorage - Already fell back to local storage before, giving up. Value for '\(keyPath)' was NOT stored.")
                 return
             }
-            
+
             synchronizable = false
-            
+
             do {
                 var freshDict: NSMutableDictionary = [:]
                 if let read = try? readDict(), let mutable = read.mutableCopy() as? NSMutableDictionary {
                     freshDict = mutable
                 }
                 freshDict.setObject((value as! NSObject?), forCoolKeyPath: keyPath)
-                
+
                 do {
                     try replaceDict(freshDict)
                 } catch KeychainError.itemNotFound {
                     try createItem(dict: freshDict)
                 }
-                
+
                 DDLogInfo("SecureStorage - Recovered using a local (non-synchronizable) item. iCloud syncing of the secure storage is disabled until relaunch.")
             } catch {
                 DDLogError("SecureStorage - Recovery failed. Value for '\(keyPath)' was NOT stored. Error: \(error)")
@@ -130,7 +130,7 @@ import Foundation
             
             /// Catch wrong type
             ///     For some reason I saw the item be a string at some point, causing a crash, so we guard against that here.
-            if let dict = dict as? NSDictionary {
+            if dict is NSDictionary {
 
             } else {
                 DDLogWarn("The Secure storage item can't be cast to an NSDictionary. It's value is \(dict). Just pretending like it's an empty dict instead.")
@@ -214,7 +214,7 @@ import Foundation
     /// Whether we're using a synchronizable (iCloud-synced) keychain item.
     /// Gets flipped to false as a fallback when interacting with the synchronizable item fails. See `set()`.
     private static var synchronizable = true
-    
+
     private static func baseQuery() -> [String: Any] {
         
         var query: [String: Any] = [
@@ -226,7 +226,7 @@ import Foundation
             query[kSecAttrSynchronizable as String] = kCFBooleanTrue!
         }
         /// Note: Queries without the synchronizable attr match only non-synchronizable items, so flipping this flag cleanly switches between the two storage universes.
-        
+
         return query
     }
     

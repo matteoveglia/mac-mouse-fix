@@ -1,7 +1,7 @@
 # 05 — Upstream Remediation Plan
 
-Date: 2026-08-23  
-Scope: `noah-nuebling/mac-mouse-fix` upstream and this revival fork  
+Date: 2026-08-23
+Scope: `noah-nuebling/mac-mouse-fix` upstream and this revival fork
 Status: working plan; this document supersedes `03-backlog-triage.md` and `04-roadmap.md` where they conflict
 
 ## Executive decision

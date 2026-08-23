@@ -427,7 +427,7 @@ class ScrollTabController: NSViewController {
         /// Remove focus
         ///     Sometimes, one of the modifierCapture fields is randomly selected. This hopefully prevents that.
         ///     Need to do asynAfter 0.0 seconds for it to work (I think - not well tested) that makes it do it on the next runLoop cycle I think.
-        
+
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.0, execute: {
             MainAppState.shared.window?.makeFirstResponder(nil)
         })
@@ -469,7 +469,7 @@ class ScrollTabController: NSViewController {
 
         horizontalSmooth.bindingTarget <~ horizontalSmoothPicker.reactive.selectedIdentifiers.map({ $0!.rawValue })
         horizontalSmoothPicker.reactive.selectedIdentifier <~ horizontalSmooth.producer.map({ NSUserInterfaceItemIdentifier($0) })
-        
+
         trackpadSection.reactive.isCollapsed <~ SignalProducer.combineLatest(verticalSmooth.producer, horizontalSmooth.producer)
             .map({ vertical, horizontal in vertical != "high" && horizontal != "high" })
         
@@ -632,7 +632,7 @@ class ScrollTabController: NSViewController {
             
             DDLogDebug("ScrollTab - Capture-relevant settings changed")
             
-            if let toastedWindow = NSApp.mainWindow {
+            if NSApp.mainWindow != nil {
                 
                 let (axisSettings0, reverse0, mods0) = previous
                 let (axisSettings1, reverse1, mods1) = current

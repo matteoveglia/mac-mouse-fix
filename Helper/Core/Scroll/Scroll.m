@@ -60,8 +60,6 @@ static ScrollConfig *_scrollConfig;
 static MFScrollAnimationCurveParameters *_animationParams;
 static ScrollAnalysisResult _lastScrollAnalysisResult;
 static CFTimeInterval _lastScrollAnalysisResultTimeStamp;
-static int _processedScrollLogCount;
-static int _outputScrollLogCount;
 //static BOOL _isSuspended = NO; TODO: Remove suspension stuff (already commented out)
 
 #pragma mark - Public functions
@@ -291,24 +289,6 @@ static CGEventRef eventTapCallback(CGEventTapProxy proxy, CGEventType type, CGEv
                                                   fixedPointFieldsAreAuthoritative);
     int64_t drawingTabletID  = CGEventGetIntegerValueField(event, kCGTabletEventDeviceID);
 
-    /// Keep a small sample in the system log while diagnosing synthetic input.
-    /// This is intentionally bounded so a high-resolution wheel cannot flood the log.
-    static int rawEventLogCount = 0;
-    if (rawEventLogCount < 32) {
-        rawEventLogCount += 1;
-        DDLogInfo("Scroll.m: raw event #%d line=(%lld,%lld) point=(%lld,%lld) fixed=(%f,%f) continuous=%lld phase=%lld tablet=%lld synthetic=%d",
-                  rawEventLogCount,
-                  CGEventGetIntegerValueField(event, kCGScrollWheelEventDeltaAxis1),
-                  CGEventGetIntegerValueField(event, kCGScrollWheelEventDeltaAxis2),
-                  CGEventGetIntegerValueField(event, kCGScrollWheelEventPointDeltaAxis1),
-                  CGEventGetIntegerValueField(event, kCGScrollWheelEventPointDeltaAxis2),
-                  CGEventGetDoubleValueField(event, kCGScrollWheelEventFixedPtDeltaAxis1),
-                  CGEventGetDoubleValueField(event, kCGScrollWheelEventFixedPtDeltaAxis2),
-                  isPixelBased,
-                  scrollPhase,
-                  drawingTabletID,
-                  isSyntheticEvent);
-    }
     bool isDiagonal = scrollDeltaAxis1 != 0 && scrollDeltaAxis2 != 0;
     if ((!isSyntheticEvent && (isPixelBased != 0
                                || scrollPhase != 0 /// Not entirely sure if testing for 'scrollPhase' here makes sense
@@ -605,23 +585,6 @@ static void heavyProcessing(CGEventRef event, int64_t scrollDeltaAxis1, int64_t 
             return;
         }
 
-        if (_processedScrollLogCount < 48) {
-            _processedScrollLogCount += 1;
-            DDLogInfo("Scroll.m: processed #%d axis=%d inputDelta=%lld rawInterval=%.6f interval=%.6f speed=%d smoothness=%d smooth=%d curve=%d px=%lld gesture=%d momentum=%d",
-                      _processedScrollLogCount,
-                      inputAxis,
-                      scrollDelta,
-                      scrollAnalysisResult.DEBUG_timeBetweenTicksRaw,
-                      scrollAnalysisResult.timeBetweenTicks,
-                      _scrollConfig.u_speed,
-                      _scrollConfig.u_smoothness,
-                      _scrollConfig.smoothEnabled,
-                      _scrollConfig.animationCurve,
-                      pxToScrollForThisTick,
-                      _scrollConfig.animationCurveParams.sendGestureScrolls,
-                      _scrollConfig.animationCurveParams.sendMomentumScrolls);
-        }
-        
         /// Debug
         DDLogDebug("Scroll.m: consecTicks: %lld, consecSwipes: %lld, consecSwipesFree: %f", scrollAnalysisResult.consecutiveScrollTickCounter, scrollAnalysisResult.DEBUG_consecutiveScrollSwipeCounterRaw, scrollAnalysisResult.consecutiveScrollSwipeCounter);
         DDLogDebug("Scroll.m: timeBetweenTicks: %f, timeBetweenTicksRaw: %f, diff: %f, ticks: %lld", scrollAnalysisResult.timeBetweenTicks, scrollAnalysisResult.DEBUG_timeBetweenTicksRaw, scrollAnalysisResult.timeBetweenTicks - scrollAnalysisResult.DEBUG_timeBetweenTicksRaw, scrollAnalysisResult.consecutiveScrollTickCounter);
@@ -1015,18 +978,6 @@ static void sendOutputEvents(int64_t dx, int64_t dy, MFScrollOutputType outputTy
         assert(eventPhase == kIOHIDEventPhaseEnded || eventPhase == kIOHIDEventPhaseCancelled);
     }
 
-    if (_outputScrollLogCount < 48) {
-        _outputScrollLogCount += 1;
-        DDLogInfo("Scroll.m: output #%d dx=%lld dy=%lld type=%d animatorPhase=%d eventPhase=%d momentum=%d",
-                  _outputScrollLogCount,
-                  dx,
-                  dy,
-                  outputType,
-                  animatorPhase,
-                  eventPhase,
-                  momentumHint);
-    }
-    
     /// Send events based on outputType
     
     if (outputType == kMFScrollOutputTypeGestureScroll) {

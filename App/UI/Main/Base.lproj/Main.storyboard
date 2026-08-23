@@ -1413,8 +1413,8 @@ your mouse. (**Logitech M720 Triathlon**)&gt;</string>
                                                                     <menu key="menu" id="ScW-Trackpad-Scope-Menu-001">
                                                                         <items>
                                                                             <menuItem title="All Apps" state="on" identifier="all" id="ScW-Trackpad-Scope-All"/>
-                                                                            <menuItem title="Included Apps" identifier="include" id="ScW-Trackpad-Scope-Include"/>
-                                                                            <menuItem title="Excluded Apps" identifier="exclude" id="ScW-Trackpad-Scope-Exclude"/>
+                                                                            <menuItem title="Only" identifier="include" id="ScW-Trackpad-Scope-Include"/>
+                                                                            <menuItem title="All Apps Except" identifier="exclude" id="ScW-Trackpad-Scope-Exclude"/>
                                                                         </items>
                                                                     </menu>
                                                                 </popUpButtonCell>
@@ -2032,6 +2032,7 @@ your mouse. (**Logitech M720 Triathlon**)&gt;</string>
                         <outlet property="trackpadHint" destination="ljz-rp-t9J" id="pUy-mv-lBP"/>
                         <outlet property="trackpadAppsButton" destination="ScW-Trackpad-Apps-Button-001" id="ScW-Trackpad-Apps-Button-Outlet"/>
                         <outlet property="trackpadAppsClearButton" destination="ScW-Trackpad-Clear-Apps-Button-001" id="ScW-Trackpad-Clear-Apps-Outlet"/>
+                        <outlet property="trackpadAppsRow" destination="ScW-Trackpad-Apps-Row-001" id="ScW-Trackpad-Apps-Row-Outlet"/>
                         <outlet property="trackpadAppsSummary" destination="ScW-Trackpad-Apps-Summary-001" id="ScW-Trackpad-Apps-Summary-Outlet"/>
                         <outlet property="trackpadSection" destination="TFj-AL-hbW" id="ID7-aO-Rky"/>
                         <outlet property="trackpadScopePicker" destination="ScW-Trackpad-Scope-Picker-001" id="ScW-Trackpad-Scope-Outlet"/>

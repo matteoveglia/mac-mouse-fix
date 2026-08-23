@@ -55,6 +55,7 @@ class ScrollTabController: NSViewController {
     @IBOutlet weak var horizontalSmoothPicker: NSPopUpButton!
     @IBOutlet weak var horizontalSpeedPicker: NSPopUpButton!
     @IBOutlet weak var trackpadScopePicker: NSPopUpButton!
+    @IBOutlet weak var trackpadAppsRow: NSStackView!
     @IBOutlet weak var trackpadAppsButton: NSButton!
     @IBOutlet weak var trackpadAppsSummary: NSTextField!
     @IBOutlet weak var trackpadAppsClearButton: NSButton!
@@ -78,14 +79,15 @@ class ScrollTabController: NSViewController {
         let apps = configuredTrackpadApps()
         let isRestricted = scope != "all"
 
+        trackpadAppsRow.isHidden = !isRestricted
         trackpadAppsButton.isEnabled = isRestricted
         trackpadAppsSummary.isEnabled = isRestricted
         trackpadAppsClearButton.isEnabled = isRestricted && !apps.isEmpty
 
         if !isRestricted {
-            trackpadAppsSummary.stringValue = "All apps"
+            trackpadAppsSummary.stringValue = ""
         } else if apps.isEmpty {
-            trackpadAppsSummary.stringValue = scope == "include" ? "No apps included" : "No apps excluded"
+            trackpadAppsSummary.stringValue = scope == "include" ? "No apps selected" : "No exclusions"
         } else {
             let appNames = apps.map { bundleID in
                 if let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) {

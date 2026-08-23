@@ -410,12 +410,16 @@ class TabViewController: NSTabViewController {
         guard let window = window else {
             return true /// Why do we return true here?
         }
-        /// Disable switching tabs animations
-        ///     Layouts break when switching while popover is animating for some reason. Can't remember what happens when switching tabs while tabs are animating
+        /// Disable switching tabs while the restore-default popover is animating.
+        /// A tab resize, on the other hand, is interruptible: rejecting the click
+        /// makes the toolbar feel as if it needs a second click.
         let popoverIsAnimating = MainAppState.shared.buttonTabController?.restoreDefaultPopoverIsAnimating ?? false
-        let tabsAreAnimating = window.tabSwitchIsInProgress
-        if tabsAreAnimating || popoverIsAnimating {
+        if popoverIsAnimating {
             return false
+        }
+
+        if window.tabSwitchIsInProgress {
+            finishTabResize()
         }
         
         /// Allow select
@@ -652,17 +656,12 @@ class TabViewController: NSTabViewController {
         DDLogDebug("Predicted window settling time: \(duration)")
         
         /// Set up resize completion callback
-        if windowResizeTimer != nil {
-            windowResizeTimer!.invalidate()
-            windowResizeTimer = nil
-        }
+        windowResizeTimer?.invalidate()
         windowResizeTimer = Timer.scheduledTimer(withTimeInterval: duration+0.1, repeats: false, block: { (timer) in
             /// Note: Adding 0.1 to duration avoids occasional jank. I guess the springAnimation.settlingDuration is sometimes underestimated.
             
             /// After the resize animation, we can add the constraints back in
-            self.restoreConstraintsAfterWindowResizing()
-            /// Set resizeInProgress
-            self.window!.tabSwitchIsInProgress = false
+            self.finishTabResize()
         })
         
         /// Play resize animation
@@ -686,6 +685,17 @@ class TabViewController: NSTabViewController {
         for c in injectedConstraints {
             c.isActive = false
         }
+
+        deactivatedConstraints = []
+        injectedConstraints = []
+    }
+
+    private func finishTabResize() {
+        windowResizeTimer?.invalidate()
+        windowResizeTimer = nil
+        window?.stopFrameAnimation()
+        restoreConstraintsAfterWindowResizing()
+        window?.tabSwitchIsInProgress = false
     }
     
     fileprivate func adjustConstraintsForWindowResizing(_ tabViewItem: NSTabViewItem, _ targetSize: NSSize) {

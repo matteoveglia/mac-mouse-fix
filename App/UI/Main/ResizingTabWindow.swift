@@ -81,6 +81,10 @@ import Cocoa
         })
                                             
     }
+
+    func stopFrameAnimation() {
+        windowFrameAnimator?.stop()
+    }
     
     override func animationResizeTime(_ newFrame: NSRect) -> TimeInterval {
         

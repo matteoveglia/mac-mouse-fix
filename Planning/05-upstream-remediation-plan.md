@@ -177,6 +177,7 @@ Audit and then centralize the lifecycle of every event tap. The audit must inclu
 
 - Completed in the current increment: `Scroll`, `ButtonInputReceiver`, `Modifiers`, `ModifiedDrag`, `PointerFreeze`, `KeyCaptureMode`, and `ModificationUtility` reject failed tap/source creation, avoid `CGEventTapIsEnabled`/`CGEventTapEnable` on null taps, and do not re-enable after a caller has requested stop. New taps are disabled before their run-loop source is attached.
 - Completed in the follow-up increment: the helper now admits only health-check, Accessibility-check, and termination messages until all post-Accessibility modules are initialized; configuration, device, remap, and event-tap commands are rejected during the startup gap.
+- Runtime-verified on the local signed Debug bundle: ServiceManagement launched the embedded helper, a direct `launchctl kill SIGTERM` restart changed its PID, and the replacement process remained active from the same Debug bundle.
 - Completed in the shutdown increment: each active tap owner now retains its source, and helper termination disables, invalidates, removes, and releases taps on their owning main or global input run loop. The global input thread supports bounded synchronous work for this teardown path.
 - Remaining: unify tap state in a single owned handle and serialize all non-termination lifecycle operations.
 - Treat a null tap, invalid Mach port, or missing run-loop source as a recoverable state with structured logging, not as a valid tap.

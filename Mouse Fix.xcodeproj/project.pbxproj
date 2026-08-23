@@ -293,6 +293,8 @@
 		4FD4A70E2E65D868004EFE66 /* CapturedButtonsGuideMMF3_ScreenshotRemaps.plist in Resources */ = {isa = PBXBuildFile; fileRef = 4FD4A70D2E65D868004EFE66 /* CapturedButtonsGuideMMF3_ScreenshotRemaps.plist */; };
 		4FD4A70F2E66FDC9004EFE66 /* MFDataClass.m in Sources */ = {isa = PBXBuildFile; fileRef = 4F0CFFE72C51878500C5D843 /* MFDataClass.m */; };
 		4FD66E0827BB553800F67559 /* CGEventHIDEventBridge.m in Sources */ = {isa = PBXBuildFile; fileRef = 4FD66E0727BB553800F67559 /* CGEventHIDEventBridge.m */; };
+		C0D000012FE8000000000001 /* MFDockSwipePayload.m in Sources */ = {isa = PBXBuildFile; fileRef = C0D000032FE8000000000003 /* MFDockSwipePayload.m */; };
+		C0D000022FE8000000000002 /* CGEventHIDEventAttachment.m in Sources */ = {isa = PBXBuildFile; fileRef = C0D000052FE8000000000005 /* CGEventHIDEventAttachment.m */; };
 		4FD66E0B27BB9BAE00F67559 /* EventUtility.m in Sources */ = {isa = PBXBuildFile; fileRef = 4FD66E0A27BB9BAE00F67559 /* EventUtility.m */; };
 		4FD860CC266EF55A004F76C8 /* ScrollConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FD860CB266EF55A004F76C8 /* ScrollConfig.swift */; };
 		4FD9A7D128BA2A810006DF4B /* SecureStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FD9A7D028BA2A810006DF4B /* SecureStorage.swift */; };
@@ -2379,6 +2381,10 @@
 		4FD4A70D2E65D868004EFE66 /* CapturedButtonsGuideMMF3_ScreenshotRemaps.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = CapturedButtonsGuideMMF3_ScreenshotRemaps.plist; sourceTree = "<group>"; };
 		4FD66E0627BB553800F67559 /* CGEventHIDEventBridge.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = CGEventHIDEventBridge.h; sourceTree = "<group>"; };
 		4FD66E0727BB553800F67559 /* CGEventHIDEventBridge.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = CGEventHIDEventBridge.m; sourceTree = "<group>"; };
+		C0D000032FE8000000000003 /* MFDockSwipePayload.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = MFDockSwipePayload.m; sourceTree = "<group>"; };
+		C0D000042FE8000000000004 /* MFDockSwipePayload.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = MFDockSwipePayload.h; sourceTree = "<group>"; };
+		C0D000052FE8000000000005 /* CGEventHIDEventAttachment.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = CGEventHIDEventAttachment.m; sourceTree = "<group>"; };
+		C0D000062FE8000000000006 /* CGEventHIDEventAttachment.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = CGEventHIDEventAttachment.h; sourceTree = "<group>"; };
 		4FD66E0927BB9BAD00F67559 /* EventUtility.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = EventUtility.h; sourceTree = "<group>"; };
 		4FD66E0A27BB9BAE00F67559 /* EventUtility.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = EventUtility.m; sourceTree = "<group>"; };
 		4FD82DD9260575B100664D6F /* NotificationLabel.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = NotificationLabel.h; sourceTree = "<group>"; };
@@ -6965,6 +6971,10 @@
 			isa = PBXGroup;
 			children = (
 				4F9C14B627BAF21E008A1479 /* MFHIDEventImports.h */,
+				C0D000042FE8000000000004 /* MFDockSwipePayload.h */,
+				C0D000032FE8000000000003 /* MFDockSwipePayload.m */,
+				C0D000062FE8000000000006 /* CGEventHIDEventAttachment.h */,
+				C0D000052FE8000000000005 /* CGEventHIDEventAttachment.m */,
 				4FD66E0627BB553800F67559 /* CGEventHIDEventBridge.h */,
 				4FD66E0727BB553800F67559 /* CGEventHIDEventBridge.m */,
 				4F70ECB5267E810900325A76 /* IOUtility.h */,
@@ -8680,6 +8690,8 @@
 				4F09284228B8C71C00BDC2FF /* Hyperlink.m in Sources */,
 				4F9E78D02685E30C002C2309 /* GestureScrollSimulator.m in Sources */,
 				4FD66E0827BB553800F67559 /* CGEventHIDEventBridge.m in Sources */,
+				C0D000012FE8000000000001 /* MFDockSwipePayload.m in Sources */,
+				C0D000022FE8000000000002 /* CGEventHIDEventAttachment.m in Sources */,
 				4FF0BD58266ACE32003935EA /* VectorUtility.m in Sources */,
 				4F96060F27B4F92F004D6F6D /* TouchAnimator.swift in Sources */,
 				4FF6654F25F2C7B000689B77 /* NSArray+Additions.m in Sources */,

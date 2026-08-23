@@ -50,7 +50,7 @@ NS_ASSUME_NONNULL_BEGIN
 /// MARK: HIDEvent <-> CGEvent
 
 HIDEvent *CGEventGetHIDEvent(CGEventRef _Nonnull);
-void CGEventSetHIDEvent(CGEventRef _Nonnull, HIDEvent * _Nonnull);
+BOOL CGEventSetHIDEvent(CGEventRef _Nonnull, HIDEvent * _Nonnull);
 
 /// MARK: v Attempts to find a HIDEvent -> CGEvent function
 

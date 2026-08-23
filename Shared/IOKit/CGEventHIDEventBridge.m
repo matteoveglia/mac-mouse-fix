@@ -12,8 +12,12 @@
 #import <dispatch/dispatch.h>
 #import "Logging.h"
 #import "PrivateFunctions.h"
+#import "CGEventHIDEventAttachment.h"
 
 @implementation CGEventHIDEventBridge
+
+static BOOL MFCGEventSetIOHIDEvent(CGEventRef cgEvent, IOHIDEventRef iohidEvent);
+static void applyOffset(void **ptr, uint8_t byteOffset);
 
 /// MARK: CGEvent -> HIDEvent
 
@@ -34,57 +38,69 @@ extern IOHIDEventRef CGEventCopyIOHIDEvent(CGEventRef); /// Doesnt seem to work 
 /// MARK: HIDEvent -> CGEvent
 
 /// Convenience wrapper
-void CGEventSetHIDEvent(CGEventRef cgEvent, HIDEvent *hidEvent) {
-    return CGEventSetIOHIDEvent(cgEvent, (__bridge IOHIDEventRef)hidEvent);
+BOOL CGEventSetHIDEvent(CGEventRef cgEvent, HIDEvent *hidEvent) {
+    return MFCGEventSetIOHIDEvent(cgEvent, (__bridge IOHIDEventRef)hidEvent);
+}
+
+typedef void (*SLEventSetIOHIDEventFunction)(CGEventRef, IOHIDEventRef);
+static SLEventSetIOHIDEventFunction _slEventSetIOHIDEvent = NULL;
+
+static BOOL MFSetHIDEventWithSkyLight(void *context, const void *cgEvent, const void *hidEvent) {
+    if (!_slEventSetIOHIDEvent) return NO;
+    _slEventSetIOHIDEvent((CGEventRef)cgEvent, (IOHIDEventRef)hidEvent);
+    return YES;
+}
+
+static BOOL MFSetHIDEventWithLegacyOffsets(void *context, const void *cgEvent, const void *hidEvent) {
+    CFRetain((CFTypeRef)hidEvent);
+
+    void *resultHIDPtr = (void *)cgEvent;
+    applyOffset(&resultHIDPtr, 0x18);
+    resultHIDPtr = *(void **)resultHIDPtr;
+    applyOffset(&resultHIDPtr, 0xd0);
+    *(IOHIDEventRef *)resultHIDPtr = (IOHIDEventRef)hidEvent;
+    return YES;
 }
 
 /// Attaches an IOHIDEvent to a CGEvent.
 ///     The legacy implementation writes through hard-coded CGEvent struct offsets. Those offsets changed on macOS 27,
 ///     so use SkyLight's setter there and keep the old implementation only for earlier macOS versions.
-void CGEventSetIOHIDEvent(CGEventRef cgEvent, IOHIDEventRef iohidEvent) {
+static BOOL MFCGEventSetIOHIDEvent(CGEventRef cgEvent, IOHIDEventRef iohidEvent) {
     
     /// Validate
     if (!cgEvent) {
         assert(false);
-        return;
+        return NO;
     }
     if (!iohidEvent) {
         assert(false);
-        return;
+        return NO;
     }
 
     /// Use SkyLight's setter on macOS 27.
     ///     The private setter copies the payload; retaining it here would leak one HID event for every simulated gesture.
     ///     If Apple removes or renames the symbol, failing closed is safer than writing through offsets known to be invalid.
     if (@available(macOS 27.0, *)) {
-        typedef void (*SLEventSetIOHIDEventFunction)(CGEventRef, IOHIDEventRef);
-        static SLEventSetIOHIDEventFunction slEventSetIOHIDEvent = NULL;
         static dispatch_once_t onceToken;
         dispatch_once(&onceToken, ^{
-            slEventSetIOHIDEvent = (SLEventSetIOHIDEventFunction)MFLoadSymbol_native(kMFFrameworkSkyLight, @"SLEventSetIOHIDEvent");
+            _slEventSetIOHIDEvent = (SLEventSetIOHIDEventFunction)MFLoadSymbol_native(kMFFrameworkSkyLight, @"SLEventSetIOHIDEvent");
         });
 
-        if (slEventSetIOHIDEvent) {
-            slEventSetIOHIDEvent(cgEvent, iohidEvent);
-        } else {
+        MFCGEventHIDEventAttachmentBackend backend = {
+            .modernSetter = _slEventSetIOHIDEvent ? MFSetHIDEventWithSkyLight : NULL,
+            .legacySetter = MFSetHIDEventWithLegacyOffsets,
+        };
+        BOOL attached = MFCGEventAttachHIDEvent(cgEvent, iohidEvent, YES, backend);
+        if (!attached) {
             DDLogError("CGEventSetIOHIDEvent: couldn't resolve SLEventSetIOHIDEvent on macOS 27; skipping the incompatible offset writer.");
         }
-        return;
+        return attached;
     }
-    
-    /// Retain
-    ///     CFRelease(cgEvent) also releases the embedded IOHIDEventRef
-    ///     Update: [Apr 2025] ... that means if we're replacing an existing IOHIDEventRef here it might get leaked.
-    CFRetain(iohidEvent);
-    
-    /// Get ptr
-    void *resultHIDPtr = (void *)cgEvent;
-    applyOffset(&resultHIDPtr, 0x18); /// Shift || Update: [Apr 2025] SLSIsEventMatchingSymbolicHotKey() disassembly might suggest that 0x18 points to a CGSEventRecord
-    resultHIDPtr = *(void **)resultHIDPtr; /// Dereference
-    applyOffset(&resultHIDPtr, 0xd0); /// Shift
-    
-    /// Store IOHIDEvent
-    *(IOHIDEventRef *)resultHIDPtr = iohidEvent; /// Store pointer to iohidEvent
+
+    MFCGEventHIDEventAttachmentBackend backend = {
+        .legacySetter = MFSetHIDEventWithLegacyOffsets,
+    };
+    return MFCGEventAttachHIDEvent(cgEvent, iohidEvent, NO, backend);
 }
 
 /// MARK: Helper
@@ -101,7 +117,7 @@ void CGEventSetIOHIDEvent(CGEventRef cgEvent, IOHIDEventRef iohidEvent) {
 ///
 /// See:  https://developer.arm.com/documentation/dui0068/b/Thumb-Instruction-Reference/Thumb-memory-access-instructions/LDR-and-STR--immediate-offset
 
-void applyOffset(void **ptr, uint8_t byteOffset) {
+static void applyOffset(void **ptr, uint8_t byteOffset) {
     *ptr = ((uint8_t *)*ptr) + byteOffset;
 }
 

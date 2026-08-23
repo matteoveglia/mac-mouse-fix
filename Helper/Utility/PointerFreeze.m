@@ -221,16 +221,34 @@ CGEventRef _Nullable mouseMovedCallback(CGEventTapProxy proxy, CGEventType type,
         
         DDLogInfo("PointerFreeze eventTap disabled by %@", type == kCGEventTapDisabledByTimeout ? @"timeout. Re-enabling." : @"user input.");
         
-        if (type == kCGEventTapDisabledByTimeout && _eventTapShouldBeEnabled) {
-//            assert(false); /// Not sure this ever times out
-            if (!setPointerFreezeEventTapEnabled(YES, "eventTapDisabledByTimeout")) {
-                _eventTapShouldBeEnabled = NO;
-                [PointerFreeze unfreeze];
-            }
+        /// The callback runs on GlobalEventTapThread, while normal freeze and
+        /// unfreeze transitions run on `_queue`. Serialize timeout recovery on
+        /// that queue too: otherwise an already-enqueued unfreeze can disable
+        /// the tap, followed by this callback re-enabling it from another
+        /// thread and leaving pointer freeze active.
+        if (_queue == NULL) {
+            DDLogError("PointerFreeze: can't recover event tap before load_Manual creates its queue.");
+            return event;
+        }
+
+        if (type == kCGEventTapDisabledByTimeout) {
+            dispatch_async(_queue, ^{
+                if (!_eventTapShouldBeEnabled) {
+                    return;
+                }
+
+//                assert(false); /// Not sure this ever times out
+                if (!setPointerFreezeEventTapEnabled(YES, "eventTapDisabledByTimeout")) {
+                    _eventTapShouldBeEnabled = NO;
+                    [PointerFreeze unfreeze];
+                }
+            });
         } else if (type == kCGEventTapDisabledByUserInput) {
-            _eventTapShouldBeEnabled = NO;
-            _coolEventTapIsEnabled = false;
-            [PointerFreeze unfreeze];
+            dispatch_async(_queue, ^{
+                _eventTapShouldBeEnabled = NO;
+                _coolEventTapIsEnabled = false;
+                [PointerFreeze unfreeze];
+            });
         }
         
         return event;

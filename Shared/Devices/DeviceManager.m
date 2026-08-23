@@ -26,6 +26,7 @@
 #import "ButtonInputReceiver.h"
 #import "Config.h"
 #import "PointerSpeed.h"
+#import "EventUtility.h"
 
 #import <IOKit/hidsystem/IOHIDServiceClient.h>
 #import <IOKit/hidsystem/IOHIDEventSystemClient.h>
@@ -294,6 +295,7 @@ static void handleDeviceRemoval(void *context, IOReturn result, void *sender, IO
         
         _maxButtonNumberAmongDevices_IsCached = false;
         [_iohidToAttachedCache removeAllObjects];
+        invalidateSendingDeviceCache();
         
         /// Notify
 //        [ReactiveDeviceManager.shared handleAttachedDevicesDidChange];

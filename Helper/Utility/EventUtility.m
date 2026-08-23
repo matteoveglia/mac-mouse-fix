@@ -22,6 +22,17 @@
 
 extern CFTimeInterval CATimeWithHostTime(UInt64 mach_absolute_time); /// I saw this in assembly but linking failed I think. Update: We built our own implementation of this at SharedUtility > machTimeToSeconds()
 
+static NSMutableDictionary<NSNumber *, id> *_hidDeviceCache;
+static dispatch_queue_t _hidDeviceCacheQueue;
+
+static void setupSendingDeviceCache(void) {
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        _hidDeviceCache = [NSMutableDictionary dictionary];
+        _hidDeviceCacheQueue = dispatch_queue_create("com.nuebling.mac-mouse-fix.sender-device-cache", DISPATCH_QUEUE_SERIAL);
+    });
+}
+
 #pragma mark - Scroll Events
 
 int64_t fixedScrollDelta(double scrollDelta) {
@@ -151,13 +162,7 @@ IOHIDDeviceRef _Nullable getSendingDeviceWithSenderID(uint64_t senderID) {
         return NULL;
     }
 
-    static NSMutableDictionary<NSNumber *, id> *_hidDeviceCache;
-    static dispatch_queue_t _hidDeviceCacheQueue;
-    static dispatch_once_t cacheSetup;
-    dispatch_once(&cacheSetup, ^{
-        _hidDeviceCache = [NSMutableDictionary dictionary];
-        _hidDeviceCacheQueue = dispatch_queue_create("com.nuebling.mac-mouse-fix.sender-device-cache", DISPATCH_QUEUE_SERIAL);
-    });
+    setupSendingDeviceCache();
 
     NSNumber *cacheKey = @(senderID);
     __block IOHIDDeviceRef result = NULL;
@@ -186,6 +191,16 @@ IOHIDDeviceRef _Nullable getSendingDeviceWithSenderID(uint64_t senderID) {
     });
 
     return result;
+}
+
+void invalidateSendingDeviceCache(void) {
+    /// Sender IDs can be reused after a USB/Bluetooth reconnect. Clearing this
+    /// cache when any attached device leaves avoids returning a disconnected
+    /// IOHIDDeviceRef to a late event or to a newly attached device.
+    setupSendingDeviceCache();
+    dispatch_sync(_hidDeviceCacheQueue, ^{
+        [_hidDeviceCache removeAllObjects];
+    });
 }
 
 IOHIDDeviceRef copySendingDevice_Faster(uint64_t senderID) {

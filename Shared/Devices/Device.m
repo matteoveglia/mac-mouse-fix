@@ -34,6 +34,7 @@
 
 @implementation Device {
     int _nOfButtons;
+    BOOL _iohidDeviceWasOpened;
 }
 
 #pragma mark - Init
@@ -103,8 +104,12 @@
         ///     Not sure if this is also necessary in the mainApp
         IOReturn ret = IOHIDDeviceOpen(self.iohidDevice, kIOHIDOptionsTypeNone);
         if (ret) {
-            assert(false); /// Should we add some error handling or just try to keep proceeding as normal?
+            /// Keep ordinary CGEvent-based button handling available even
+            /// when exclusive/raw access cannot be opened (for example while
+            /// vendor software owns the interface).
             DDLogError("Error opening device. Code: %x", ret);
+        } else {
+            _iohidDeviceWasOpened = YES;
         }
         
         ///
@@ -153,6 +158,12 @@
 - (void)dealloc {
     /// Note: `_iohidDevice` shouldn't really ever be NULL, but during the init it happens for some reason
     if (_iohidDevice != NULL) {
+        if (_iohidDeviceWasOpened) {
+            IOReturn closeResult = IOHIDDeviceClose(_iohidDevice, kIOHIDOptionsTypeNone);
+            if (closeResult != kIOReturnSuccess) {
+                DDLogError("Error closing device. Code: %x", closeResult);
+            }
+        }
         CFRelease(_iohidDevice);
     }
 }

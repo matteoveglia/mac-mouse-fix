@@ -228,6 +228,7 @@ static void handleDeviceMatching(void *context, IOReturn result, void *sender, I
         
         /// Reset cache
         _maxButtonNumberAmongDevices_IsCached = false;
+        invalidateSendingDeviceCache();
         
         /// Notify
 //        [ReactiveDeviceManager.shared handleAttachedDevicesDidChange];

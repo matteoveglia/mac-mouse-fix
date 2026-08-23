@@ -584,7 +584,7 @@ static void heavyProcessing(CGEventRef event, int64_t scrollDeltaAxis1, int64_t 
             /// Apply fastScroll
             pxToScrollForThisTick *= fastScrollFactor;
         }
-        
+
         ///
         /// Make direction change stop scroll animation
         ///
@@ -606,7 +606,7 @@ static void heavyProcessing(CGEventRef event, int64_t scrollDeltaAxis1, int64_t 
 
         if (_processedScrollLogCount < 48) {
             _processedScrollLogCount += 1;
-            DDLogInfo("Scroll.m: processed #%d axis=%d inputDelta=%lld rawInterval=%.6f interval=%.6f speed=%d smoothness=%d smooth=%d curve=%d px=%lld gesture=%d momentum=%d",
+            DDLogInfo("Scroll.m: processed #%d axis=%d inputDelta=%lld rawInterval=%.6f interval=%.6f speed=%d smoothness=%d smooth=%d curve=%d scale=%.2f px=%lld gesture=%d momentum=%d",
                       _processedScrollLogCount,
                       inputAxis,
                       scrollDelta,
@@ -616,6 +616,7 @@ static void heavyProcessing(CGEventRef event, int64_t scrollDeltaAxis1, int64_t 
                       _scrollConfig.u_smoothness,
                       _scrollConfig.smoothEnabled,
                       _scrollConfig.animationCurve,
+                      _scrollConfig.horizontalScale,
                       pxToScrollForThisTick,
                       _scrollConfig.animationCurveParams.sendGestureScrolls,
                       _scrollConfig.animationCurveParams.sendMomentumScrolls);
@@ -624,6 +625,16 @@ static void heavyProcessing(CGEventRef event, int64_t scrollDeltaAxis1, int64_t 
         /// Debug
         DDLogDebug("Scroll.m: consecTicks: %lld, consecSwipes: %lld, consecSwipesFree: %f", scrollAnalysisResult.consecutiveScrollTickCounter, scrollAnalysisResult.DEBUG_consecutiveScrollSwipeCounterRaw, scrollAnalysisResult.consecutiveScrollSwipeCounter);
         DDLogDebug("Scroll.m: timeBetweenTicks: %f, timeBetweenTicksRaw: %f, diff: %f, ticks: %lld", scrollAnalysisResult.timeBetweenTicks, scrollAnalysisResult.DEBUG_timeBetweenTicksRaw, scrollAnalysisResult.timeBetweenTicks - scrollAnalysisResult.DEBUG_timeBetweenTicksRaw, scrollAnalysisResult.consecutiveScrollTickCounter);
+    }
+
+    /// Apply the optional horizontal output scale after acceleration and
+    /// fast-scroll processing. This keeps it independent from the speed
+    /// curve while reducing the total distance sent to every app that
+    /// receives horizontal scrolling, including Spaces navigation.
+    if (inputAxis == kMFAxisHorizontal
+        || _modifications.effectMod == kMFScrollEffectModificationHorizontalScroll) {
+        double scaledPixels = (double)pxToScrollForThisTick * _scrollConfig.horizontalScale;
+        pxToScrollForThisTick = MAX(1, llround(scaledPixels));
     }
     
     ///

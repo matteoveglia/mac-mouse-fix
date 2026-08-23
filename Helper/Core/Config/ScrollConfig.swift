@@ -311,6 +311,15 @@ import Cocoa
             return nil
         }
     }
+
+    private static func horizontalScaleFactor(for value: String) -> Double {
+        switch value {
+        case "normal":  return 1.0
+        case "reduced": return 0.5
+        case "minimal": return 0.25
+        default: fatalError()
+        }
+    }
     
     @objc static var linearCurve: Bezier = { () -> Bezier in
         
@@ -554,6 +563,13 @@ import Cocoa
         }
     }()
     @objc lazy var u_precise: Bool = { c("precise") as! Bool }()
+
+    /// Final multiplier for horizontal scroll output. This is deliberately
+    /// separate from the speed acceleration curve so it can reduce the total
+    /// horizontal distance without changing scroll timing or smoothness.
+    @objc lazy var horizontalScale: Double = {
+        ScrollConfig.horizontalScaleFactor(for: (c("horizontalScale") as? String) ?? "normal")
+    }()
     
     /// Stored property
     ///     This is used by Scroll.m to determine how to accelerate

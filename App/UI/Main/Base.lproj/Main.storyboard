@@ -1557,6 +1557,45 @@ your mouse. (**Logitech M720 Triathlon**)&gt;</string>
                                             </popUpButton>
                                         </subviews>
                                     </stackView>
+                                    <textField focusRingType="none" horizontalHuggingPriority="1000" verticalHuggingPriority="1000" translatesAutoresizingMaskInto="NO" id="ScW-Scale-Title-001">
+                                        <rect key="frame" x="0.0" y="158" width="350" height="16"/>
+                                        <textFieldCell key="cell" controlSize="small" lineBreakMode="clipping" title="Scale" id="ScW-Scale-Title-Cell-001">
+                                            <font key="font" metaFont="smallSystem"/>
+                                            <color key="textColor" name="secondaryLabelColor" catalog="System" colorSpace="catalog"/>
+                                            <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
+                                        </textFieldCell>
+                                    </textField>
+                                    <stackView distribution="fill" orientation="horizontal" alignment="centerY" spacing="10" horizontalStackHuggingPriority="1000" verticalStackHuggingPriority="750" horizontalHuggingPriority="1000" detachesHiddenViews="YES" translatesAutoresizingMaskInto="NO" id="ScW-Horizontal-Scale-Stack-001" userLabel="Horizontal Scale Row">
+                                        <rect key="frame" x="0.0" y="135" width="192" height="24"/>
+                                        <subviews>
+                                            <textField focusRingType="none" horizontalHuggingPriority="1000" verticalHuggingPriority="1000" horizontalCompressionResistancePriority="1000" verticalCompressionResistancePriority="1000" translatesAutoresizingMaskInto="NO" id="ScW-Horizontal-Scale-Label-001">
+                                                <rect key="frame" x="-2" y="4" width="70" height="16"/>
+                                                <constraints>
+                                                    <constraint firstAttribute="width" constant="70" id="ScW-Horizontal-Scale-Label-Width"/>
+                                                </constraints>
+                                                <textFieldCell key="cell" lineBreakMode="clipping" alignment="left" title="Horizontal" id="ScW-Horizontal-Scale-Label-Cell-001">
+                                                    <font key="font" usesAppearanceFont="YES"/>
+                                                    <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog"/>
+                                                    <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
+                                                </textFieldCell>
+                                            </textField>
+                                            <popUpButton horizontalHuggingPriority="1000" verticalHuggingPriority="750" horizontalCompressionResistancePriority="1000" verticalCompressionResistancePriority="1000" translatesAutoresizingMaskInto="NO" id="ScW-Horizontal-Scale-Picker-001">
+                                                <rect key="frame" x="87" y="0.0" width="96" height="24"/>
+                                                <popUpButtonCell key="cell" type="push" title="Normal" bezelStyle="rounded" alignment="left" lineBreakMode="truncatingTail" state="on" borderStyle="borderAndBezel" imageScaling="proportionallyDown" inset="2" selectedItem="ScW-Horizontal-Scale-Normal" id="ScW-Horizontal-Scale-Cell-001">
+                                                    <behavior key="behavior" lightByBackground="YES" lightByGray="YES"/>
+                                                    <font key="font" metaFont="message"/>
+                                                    <menu key="menu" id="ScW-Horizontal-Scale-Menu-001">
+                                                        <items>
+                                                            <menuItem title="Normal" state="on" identifier="normal" id="ScW-Horizontal-Scale-Normal"/>
+                                                            <menuItem title="Reduced" identifier="reduced" id="ScW-Horizontal-Scale-Reduced"/>
+                                                            <menuItem title="Minimal" identifier="minimal" id="ScW-Horizontal-Scale-Minimal"/>
+                                                        </items>
+                                                    </menu>
+                                                </popUpButtonCell>
+                                                <accessibility identifier="axScrollingHorizontalScaleButton"/>
+                                            </popUpButton>
+                                        </subviews>
+                                    </stackView>
                                     <stackView distribution="fill" orientation="vertical" alignment="leading" horizontalStackHuggingPriority="249.99998474121094" verticalStackHuggingPriority="249.99998474121094" detachesHiddenViews="YES" translatesAutoresizingMaskIntoConstraints="NO" id="WGO-Zc-NYH" userLabel="Precise Section">
                                         <rect key="frame" x="0.0" y="203" width="350" height="46"/>
                                         <subviews>
@@ -1935,6 +1974,7 @@ your mouse. (**Logitech M720 Triathlon**)&gt;</string>
                         <outlet property="horizontalModField" destination="PpE-2r-BrM" id="sxE-uX-0zf"/>
                         <outlet property="horizontalSmoothPicker" destination="ScW-Horizontal-Smooth-001" id="ScW-Horizontal-Smooth-Outlet"/>
                         <outlet property="horizontalSpeedPicker" destination="hSp-Picker-001" id="hSp-Outlet-001"/>
+                        <outlet property="horizontalScalePicker" destination="ScW-Horizontal-Scale-Picker-001" id="ScW-Horizontal-Scale-Outlet"/>
                         <outlet property="masterStack" destination="N4F-RB-d7a" id="l0H-83-1J7"/>
                         <outlet property="preciseHint" destination="Yn5-ch-Oxi" id="qNm-Cv-Jsf"/>
                         <outlet property="preciseModField" destination="gqo-T2-Nmz" id="Rts-Lf-EyR"/>

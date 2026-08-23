@@ -26,6 +26,7 @@
 #import <Foundation/Foundation.h>
 #import "HelperUtility.h"
 #import "Logging.h"
+#import "MFDockSwipePayload.h"
 
 @implementation TouchSimulator
 
@@ -123,19 +124,13 @@ static NSMutableDictionary *_swipeInfo;
     }
     
     /// State
-    static double _dockSwipeOriginOffset = 0.0;
-    static double _dockSwipeLastDelta = 0.0;
+    static MFDockSwipeState _dockSwipeState;
     static NSTimer *_doubleSendTimer;
     static NSTimer *_tripleSendTimer;
-    
-    /// Update originOffset
-    
-    if (phase == kIOHIDEventPhaseBegan) {
-        _dockSwipeOriginOffset = d;
-    } else if (phase == kIOHIDEventPhaseChanged) {
-        if (d == 0) return;
-        _dockSwipeOriginOffset += d;
-    }
+
+    MFDockSwipePayload payload = MFDockSwipePayloadAdvance(&_dockSwipeState, d, phase, invertedFromDevice);
+    if (!payload.shouldPost) return;
+    phase = payload.phase;
     
     /// Debug
     
@@ -160,61 +155,30 @@ static NSMutableDictionary *_swipeInfo;
                    @(timeDiff));
     }
     
-    /// Determine exitSpeed
-    /// Notes:
-    /// - This only seems to affect the pinch dockSwipes. Doesn't seem to affect horiztonal or vertical.
-    /// - `*100` is a rough approximation of how the real values look. `*50` also seemed to work well.
-    /// - Update: on macOS 27 I just observed `*300`. I'm not 100% sure whether the `velocity` value on macOS 27 is the same as the old `exitSpeed`.
-    double exitSpeed = 0;
-    if (phase == kIOHIDEventPhaseEnded || phase == kIOHIDEventPhaseCancelled) {
-        exitSpeed = _dockSwipeLastDelta*100;
-    }
-    
-    /// Override end phase with canceled phase
-    ///     Note: Would it make more sense for this to happen in the 'driver' of the event simulation? (As of [Feb 2025] the 'drivers' are Scroll.m and ModifiedDragOutputThreeFingerSwipe.m)
-    if (phase == kIOHIDEventPhaseEnded) {
-        if (mfsign(_dockSwipeLastDelta) == mfsign(_dockSwipeOriginOffset)) {
-            phase = kIOHIDEventPhaseEnded;
-        } else {
-            phase = kIOHIDEventPhaseCancelled;
-        }
-    }
-    
     /// Create events
     
     CGEventRef e29 = NULL;
     CGEventRef e30 = NULL;
     if (@available(macOS 27.0, *)) {
         
-        /// Un-flip progress and velocity.
-        ///     The `d` input args are already pre-flipped by `ModifiedDrag.m` if `invertedFromDevice == true`. But the macOS 27 path applies the flipping by itself somehow.
-        ///     Both values must use the same coordinate space. Otherwise release velocity points backwards and causes a
-        ///     visible rebound at the end of a transition.
-        double unflippedOriginOffset = _dockSwipeOriginOffset;
-        double unflippedExitSpeed = exitSpeed;
-        if (invertedFromDevice) {
-            unflippedOriginOffset *= -1;
-            unflippedExitSpeed *= -1;
-        }
-        
         /// Create HIDEvent
         ///     Note: Setting the timestamp to `mach_absolute_time()` here would make some sense but we're not setting timestamps anywhere else when simulating gestures
         HIDEvent *hidEvent = [[HIDEvent alloc] initWithType: kIOHIDEventTypeDockSwipe timestamp: 0 senderID: 0];
         
-        IOHIDEventOptionBits options = (phase << kIOHIDEventEventOptionPhaseShift);
+        IOHIDEventOptionBits options = ((IOHIDEventOptionBits)phase << kIOHIDEventEventOptionPhaseShift);
         
         [hidEvent setOptions: options];
         [hidEvent setIntegerValue: type                             forField: kIOHIDEventFieldDockSwipeMotion];
         [hidEvent setIntegerValue: kIOHIDGestureFlavorDockPrimary   forField: kIOHIDEventFieldDockSwipeFlavor];
-        [hidEvent setDoubleValue: unflippedOriginOffset             forField: kIOHIDEventFieldDockSwipeProgress];
+        [hidEvent setDoubleValue: payload.modernProgress            forField: kIOHIDEventFieldDockSwipeProgress];
         
         /// Attach velocity event on exit
-        if (phase == kIOHIDEventPhaseEnded || phase == kIOHIDEventPhaseCancelled) {
+        if (payload.includesExitVelocity) {
             
             HIDEvent *childEvent = [[HIDEvent alloc] initWithType: kIOHIDEventTypeVelocity timestamp: 0 senderID: 0];
             
-            [childEvent setDoubleValue: unflippedExitSpeed forField: kIOHIDEventFieldVelocityX];
-            [childEvent setDoubleValue: unflippedExitSpeed forField: kIOHIDEventFieldVelocityY];
+            [childEvent setDoubleValue: payload.modernExitVelocity forField: kIOHIDEventFieldVelocityX];
+            [childEvent setDoubleValue: payload.modernExitVelocity forField: kIOHIDEventFieldVelocityY];
             [childEvent setDoubleValue: 0.0                forField: kIOHIDEventFieldVelocityZ];
             
             [hidEvent appendEvent: childEvent];
@@ -222,8 +186,11 @@ static NSMutableDictionary *_swipeInfo;
             
         /// Wrap in a CGEvent
         e30 = CGEventCreate(NULL);
-        CGEventSetType(e30, 30);
-        CGEventSetHIDEvent(e30, hidEvent);
+        if (e30) CGEventSetType(e30, 30);
+        if (!e30 || !CGEventSetHIDEvent(e30, hidEvent)) {
+            if (e30) CFRelease(e30);
+            e30 = NULL;
+        }
         
     } else { /// pre-macOS 27
        
@@ -234,20 +201,26 @@ static NSMutableDictionary *_swipeInfo;
         /// Create type 29 (NSEventTypeGesture) event
         
         e29 = CGEventCreate(NULL);
-        CGEventSetDoubleValueField(e29, 55, 29/*NSEventTypeGesture*/); /// Set event type
-        CGEventSetDoubleValueField(e29, 41, valFor41); /// No idea what this does but it might help. // TODO: Why?
+        if (e29) {
+            CGEventSetDoubleValueField(e29, 55, 29/*NSEventTypeGesture*/); /// Set event type
+            CGEventSetDoubleValueField(e29, 41, valFor41); /// No idea what this does but it might help. // TODO: Why?
+        }
         
         /// Create type 30 event
         
         e30 = CGEventCreate(NULL);
+        if (!e30) {
+            if (e29) CFRelease(e29);
+            return;
+        }
         
         CGEventSetDoubleValueField(e30, 55,  30/*NSEventTypeMagnify*/); /// Set event type (idk why it's magnify but it is...)
         CGEventSetDoubleValueField(e30, 110, kIOHIDEventTypeDockSwipe); /// Set subtype
         CGEventSetDoubleValueField(e30, 132, phase);
         CGEventSetDoubleValueField(e30, 134, phase); /// Not sure if necessary
 
-        CGEventSetDoubleValueField(e30, 124, _dockSwipeOriginOffset); /// Origin offset
-        Float32 ofsFloat32 = (Float32)_dockSwipeOriginOffset;
+        CGEventSetDoubleValueField(e30, 124, payload.legacyProgress); /// Origin offset
+        Float32 ofsFloat32 = (Float32)payload.legacyProgress;
         uint32_t ofsInt32; /// Has to be `uint32_t` not `int32_t`!
         memcpy(&ofsInt32, &ofsFloat32, sizeof(ofsFloat32));
         int64_t ofsInt64 = (int64_t)ofsInt32;
@@ -276,11 +249,11 @@ static NSMutableDictionary *_swipeInfo;
         
         CGEventSetIntegerValueField(e30, 136, invertedFromDevice ? 1 : 0);
         
-        if (phase == kIOHIDEventPhaseEnded || phase == kIOHIDEventPhaseCancelled) {
+        if (payload.includesExitVelocity) {
             
             /// Set Exit Speed
-            CGEventSetDoubleValueField(e30, 129, exitSpeed);
-            CGEventSetDoubleValueField(e30, 130, exitSpeed);
+            CGEventSetDoubleValueField(e30, 129, payload.legacyExitVelocity);
+            CGEventSetDoubleValueField(e30, 130, payload.legacyExitVelocity);
             
             /// Debug
             ///     Debugging of stuck-bug. When the stuck bug occurs, This always seems to be called and in the appropriate order (The fake dockSwipe with the end-phase is always called after all other phases).
@@ -288,10 +261,10 @@ static NSMutableDictionary *_swipeInfo;
             ///     This makes me think the bug is about timing / how slow the events are sent, and not in which order the events are sent or with on which thread the events are sent as I suspected initially.
             ///     Another hint towards this is, that the stuck-bug seems to occur more, the slower and more stuttery the UI is (the longer the computer has been running)
             /// I fixed the stuck-bug now. (See the comment with "This fixed the stuck-bug!" in ModifiedDrag.m) But I still don't know what caused it exactly.
-            DDLogDebug("Dock Swipe exit: %f, originOffset: %f, phase: %hu", _dockSwipeLastDelta*100, _dockSwipeOriginOffset, phase);
+            DDLogDebug("Dock Swipe exit: %f, originOffset: %f, phase: %hu", payload.legacyExitVelocity, payload.legacyProgress, phase);
 
         } else {
-            DDLogDebug("Dock Swipe delta: %f originOffset: %f, phase: %hu", d, _dockSwipeOriginOffset, phase);
+            DDLogDebug("Dock Swipe delta: %f originOffset: %f, phase: %hu", d, payload.legacyProgress, phase);
             
         }
     }
@@ -302,6 +275,10 @@ static NSMutableDictionary *_swipeInfo;
     
     if (e30) CGEventPost(kCGSessionEventTap, e30); /// Not sure if order matters
     if (e29) CGEventPost(kCGSessionEventTap, e29); /// This is NULL on macOS 27. Doesn't cause issues but logs `invalid CGEvent: 0x0` error.
+
+    /// The modern bridge intentionally fails closed if SkyLight's setter is unavailable.
+    /// Do not schedule retries for an event that has no HID payload.
+    if (!e30 && !e29) return;
     
     if (phase == kIOHIDEventPhaseBegan) {
         
@@ -364,8 +341,6 @@ static NSMutableDictionary *_swipeInfo;
     if (e29) CFRelease(e29); /// On macOS 27+, this is NULL
     if (e30) CFRelease(e30);
     
-    /// Update state
-    _dockSwipeLastDelta = d;
 }
 
 + (void)dockSwipeTimerFired:(NSTimer *)timer {

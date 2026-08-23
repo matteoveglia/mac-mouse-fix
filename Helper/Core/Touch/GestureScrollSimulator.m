@@ -16,6 +16,7 @@
 #import "VectorSubPixelator.h"
 #import "ModificationUtility.h"
 #import "Mac_Mouse_Fix_Helper-Swift.h"
+#import "MFScrollGeneration.h"
 
 /**
  This generates fliud scroll events containing gesture data similar to the Apple Trackpad or Apple Magic Mouse driver.
@@ -38,6 +39,13 @@ static VectorSubPixelator *_scrollLinePixelator;
 static TouchAnimator *_momentumAnimator;
 
 static dispatch_queue_t _momentumQueue;
+static char _momentumQueueSpecificKey;
+static MFScrollGeneration _momentumGeneration = MF_SCROLL_GENERATION_INITIALIZER;
+static _Atomic(bool) _momentumResetAllowsTerminalCallback = false;
+static CFTimeInterval _lastInputTime;
+static Vector _lastScrollVec;
+static void startMomentumScroll(double timeSinceLastInput, Vector exitVelocity, double stopSpeed, double dragCoefficient, double dragExponent, BOOL invertedFromDevice, uint64_t generation);
+static void startMomentumScroll_Unsafe(double timeSinceLastInput, Vector exitVelocity, double stopSpeed, double dragCoefficient, double dragExponent, BOOL invertedFromDevice, uint64_t generation);
 /// ^ This class doesn't only act as an output module (aka event sender) but also as an output driver for momentumScroll events. For its role as a driver, it needs a dispatchQueue. Consider factoring the autoMomentumScroll stuff out of this class for clear separation.
 
 + (void)initialize
@@ -48,6 +56,7 @@ static dispatch_queue_t _momentumQueue;
         
         dispatch_queue_attr_t attr = dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_USER_INTERACTIVE, -1);
         _momentumQueue = dispatch_queue_create("com.nuebling.mac-mouse-fix.gesture-scroll", attr);
+        dispatch_queue_set_specific(_momentumQueue, &_momentumQueueSpecificKey, &_momentumQueueSpecificKey, NULL);
         
         /// Init Pixelators
         
@@ -77,8 +86,18 @@ static dispatch_queue_t _momentumQueue;
 */
 
 + (void)postGestureScrollEventWithDeltaX:(int64_t)dx deltaY:(int64_t)dy phase:(IOHIDEventPhaseBits)phase autoMomentumScroll:(BOOL)autoMomentumScroll invertedFromDevice:(BOOL)invertedFromDevice {
+
+    if (dispatch_get_specific(&_momentumQueueSpecificKey) == NULL) {
+        dispatch_sync(_momentumQueue, ^{
+            [self postGestureScrollEventWithDeltaX:dx deltaY:dy phase:phase autoMomentumScroll:autoMomentumScroll invertedFromDevice:invertedFromDevice];
+        });
+        return;
+    }
+
+    uint64_t generation = MFScrollGenerationCurrent(&_momentumGeneration);
     
-    /// This function doesn't dispatch to _queue. It should only be called if you're already on _queue. Otherwise there will be race conditions with the other functions that execute on _queue.
+    /// The implementation is serialized on `_momentumQueue`; callers may use
+    /// this method from any queue.
     /// `autoMomentumScroll` should always be true, except if you are going to post momentumScrolls manually using `+ postMomentumScrollEvent`
     
     /// Debug
@@ -107,19 +126,21 @@ static dispatch_queue_t _momentumQueue;
     ///     Do it sync otherwise it will be stopped immediately after it's startet by this block
     [GestureScrollSimulator stopMomentumScroll_Unsafe];
     
-    /// Timestamps and static vars
-
-    static CFTimeInterval lastInputTime;
-    static Vector lastScrollVec;
-    
+    /// Timestamps and state
     CFTimeInterval now = CACurrentMediaTime();
     CFTimeInterval timeSinceLastInput;
-    
+    Vector lastScrollVec;
+
     if (phase == kIOHIDEventPhaseBegan) {
         timeSinceLastInput = DBL_MAX; /// This means we can't say anything useful about the time since last input
     } else {
-        timeSinceLastInput = now - lastInputTime;
+        timeSinceLastInput = now - _lastInputTime;
     }
+    lastScrollVec = _lastScrollVec;
+    if (phase == kIOHIDEventPhaseBegan || phase == kIOHIDEventPhaseChanged || phase == kIOHIDEventPhaseMayBegin || phase == kIOHIDEventPhaseCancelled) {
+        _lastScrollVec = (Vector){ .x = dx, .y = dy };
+    }
+    _lastInputTime = now;
     
     /// Main
     
@@ -137,10 +158,6 @@ static dispatch_queue_t _momentumQueue;
         Vector vecScrollLineInt;
         Vector vecGesture;
         getDeltaVectors(vecScrollPoint, _scrollLinePixelator, &vecScrollLine, &vecScrollLineInt, &vecGesture);
-        
-        /// Record last scroll point vec
-        
-        lastScrollVec = vecScrollPoint;
         
         /// Post events
         
@@ -188,7 +205,7 @@ static dispatch_queue_t _momentumQueue;
             
             /// Do start momentum scroll
             
-            startMomentumScroll(timeSinceLastInput, exitVelocity, stopSpeed, dragCoeff, dragExp, invertedFromDevice);
+            startMomentumScroll(timeSinceLastInput, exitVelocity, stopSpeed, dragCoeff, dragExp, invertedFromDevice, generation);
         }
         
     } else {
@@ -196,7 +213,6 @@ static dispatch_queue_t _momentumQueue;
         assert(false);
     }
     
-    lastInputTime = now; /// Make sure you don't return early so this is always executed
 }
 
 #pragma mark - Direct momentum scroll interface
@@ -205,6 +221,13 @@ static dispatch_queue_t _momentumQueue;
                                       deltaY:(double)dy
                                momentumPhase:(CGMomentumScrollPhase)momentumPhase
                           invertedFromDevice:(BOOL)invertedFromDevice {
+
+    if (dispatch_get_specific(&_momentumQueueSpecificKey) == NULL) {
+        dispatch_sync(_momentumQueue, ^{
+            [self postMomentumScrollDirectlyWithDeltaX:dx deltaY:dy momentumPhase:momentumPhase invertedFromDevice:invertedFromDevice];
+        });
+        return;
+    }
     
     /// Reset subpixelator
     if (momentumPhase == kCGMomentumScrollPhaseBegin) {
@@ -244,7 +267,9 @@ static void (^_momentumScrollCallback)(void);
     ///     This is only used by `ModifiedDrag`.
     ///     It probably shouldn't be sued by other classes, because of its specific behaviour and because, other classes might override eachothers callbacks, which would lead to really bad issues in ModifiedDrag
     
+    uint64_t generation = MFScrollGenerationCurrent(&_momentumGeneration);
     dispatch_async(_momentumQueue, ^{
+        if (!MFScrollGenerationIsCurrent(&_momentumGeneration, generation)) return;
         
         if (_momentumAnimator.isRunning && callback != NULL) {
             /// ^ `&& callback != NULL` is a hack to make ModifiedDragOutputTwoFingerSwipe work properly. I'm not sure what I'm doing.
@@ -260,9 +285,13 @@ static void (^_momentumScrollCallback)(void);
 /// Stop momentum scroll
 
 + (void)suspendMomentumScroll {
-    dispatch_sync(_momentumQueue, ^{
+    if (dispatch_get_specific(&_momentumQueueSpecificKey) != NULL) {
         [self stopMomentumScroll_Unsafe];
-    });
+    } else {
+        dispatch_sync(_momentumQueue, ^{
+            [self stopMomentumScroll_Unsafe];
+        });
+    }
 }
 
 + (void)stopMomentumScroll {
@@ -278,15 +307,43 @@ static void (^_momentumScrollCallback)(void);
     [_momentumAnimator cancel_forAutoMomentumScroll:YES];
 }
 
-/// Momentum scroll main
++ (void)resetStateSync {
+    MFScrollGenerationAdvance(&_momentumGeneration);
+    void (^reset)(void) = ^{
+        atomic_store_explicit(&_momentumResetAllowsTerminalCallback, true, memory_order_release);
+        [self stopMomentumScroll_Unsafe];
+        [_momentumAnimator resetSubPixelator];
+        [_momentumAnimator synchronizePendingOperations];
+        atomic_store_explicit(&_momentumResetAllowsTerminalCallback, false, memory_order_release);
+        [_scrollLinePixelator reset];
+        _momentumScrollCallback = nil;
 
-static void startMomentumScroll(double timeSinceLastInput, Vector exitVelocity, double stopSpeed, double dragCoefficient, double dragExponent, BOOL invertedFromDevice) {
-    dispatch_sync(_momentumQueue, ^{
-        startMomentumScroll_Unsafe(timeSinceLastInput, exitVelocity, stopSpeed, dragCoefficient, dragExponent, invertedFromDevice);
-    });
+        _lastInputTime = 0;
+        _lastScrollVec = (Vector){0};
+        MFScrollGenerationAdvance(&_momentumGeneration);
+    };
+    if (dispatch_get_specific(&_momentumQueueSpecificKey) != NULL) {
+        reset();
+    } else {
+        dispatch_sync(_momentumQueue, reset);
+    }
 }
 
-static void startMomentumScroll_Unsafe(double timeSinceLastInput, Vector exitVelocity, double stopSpeed, double dragCoefficient, double dragExponent, BOOL invertedFromDevice) {
+/// Momentum scroll main
+
+static void startMomentumScroll(double timeSinceLastInput, Vector exitVelocity, double stopSpeed, double dragCoefficient, double dragExponent, BOOL invertedFromDevice, uint64_t generation) {
+    if (dispatch_get_specific(&_momentumQueueSpecificKey) != NULL) {
+        startMomentumScroll_Unsafe(timeSinceLastInput, exitVelocity, stopSpeed, dragCoefficient, dragExponent, invertedFromDevice, generation);
+    } else {
+        dispatch_sync(_momentumQueue, ^{
+            startMomentumScroll_Unsafe(timeSinceLastInput, exitVelocity, stopSpeed, dragCoefficient, dragExponent, invertedFromDevice, generation);
+        });
+    }
+}
+
+static void startMomentumScroll_Unsafe(double timeSinceLastInput, Vector exitVelocity, double stopSpeed, double dragCoefficient, double dragExponent, BOOL invertedFromDevice, uint64_t generation) {
+
+    if (!MFScrollGenerationIsCurrent(&_momentumGeneration, generation)) return;
     
     /// Debug
     
@@ -319,6 +376,9 @@ static void startMomentumScroll_Unsafe(double timeSinceLastInput, Vector exitVel
     /// Start animator
     
     [_momentumAnimator startWithParams:^NSDictionary<NSString *,id> * _Nonnull(Vector valueLeft, BOOL isRunning, Curve * _Nullable curve, Vector currentSpeed) {
+        if (!MFScrollGenerationIsCurrent(&_momentumGeneration, generation)) {
+            return @{ @"doStart": @NO };
+        }
         
         NSMutableDictionary *p = [NSMutableDictionary dictionary];
         
@@ -367,6 +427,10 @@ static void startMomentumScroll_Unsafe(double timeSinceLastInput, Vector exitVel
         return p;
         
     } integerCallback:^(Vector deltaVec, MFAnimationCallbackPhase animationPhase, MFMomentumHint subCurve) {
+        bool generationIsCurrent = MFScrollGenerationIsCurrent(&_momentumGeneration, generation);
+        bool isResetTerminal = !generationIsCurrent && animationPhase == kMFAnimationCallbackPhaseCanceled;
+        bool resetInProgress = atomic_load_explicit(&_momentumResetAllowsTerminalCallback, memory_order_acquire);
+        if (!MFScrollGenerationAllowsCallback(&_momentumGeneration, generation, isResetTerminal, resetInProgress)) return;
         
         /// Debug
         DDLogDebug("Momentum scrolling - delta: (%f, %f), animationPhase: %d", deltaVec.x, deltaVec.y, animationPhase);

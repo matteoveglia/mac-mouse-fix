@@ -1,6 +1,6 @@
 # Remediation Test Matrix
 
-Updated: 2026-08-23 · Branches: `codex/remediation-p0`, `codex/remediation-p1`
+Updated: 2026-08-23 · Branches: `codex/remediation-p0`, `codex/remediation-p1`, `codex/remediation-lifecycle`, `codex/remediation-dock-payload`
 
 This records current evidence for the compatibility remediation. A successful
 build is not evidence that the input path works on physical hardware, so those
@@ -24,7 +24,7 @@ checks remain explicitly open.
 | Event-tap ownership core | Pass | Fake-backend tests cover failed tap/source creation, inert creation, idempotent toggles, refused enable, late-enable rejection, stable teardown order, and exactly-once release. The signed lifecycle build also passed rapid disable/enable cycling, quit/reopen, shortcut capture, normal buttons/scrolling, and modified-drag teardown. |
 | Pointer-freeze / two-finger drag | Pass | The signed lifecycle build completed modified-drag testing without leaving the real pointer frozen or hidden. Extended soak and interruption testing remains part of the broader lifecycle matrix. |
 | Scroll and virtual/remote input | Partial pass | Fast scrolling works with a mouse remote to this machine. Ordinary scrolling, browser maps, iPhone Mirroring/other remote sources if available, and helper restart remain pending. Do not assess horizontal scaling: it is intentionally not part of this fork. |
-| Dock swipes | Manual pending | Test normal/inverted drag into Spaces, Mission Control, Show Desktop, Launchpad, multiple displays, reversals, and releases at low/high velocity. |
+| Dock swipes | Deterministic pass; runtime pending | Reducer tests cover progress accumulation, normal/inverted progress and release-velocity signs, reversal cancellation, explicit cancellation, and zero-delta suppression. Injectable bridge tests cover modern success/failure/missing-symbol fail-closed behavior and legacy isolation. Test the signed build with normal/inverted drag into Spaces, Mission Control, Show Desktop, Launchpad, multiple displays, reversals, overlapping scroll/drag attempts, and low/high-velocity releases; verify the private setter's copied payload remains valid before claiming compatibility. |
 | Accessibility / lifecycle | Partial pass | Rapid disable/enable cycling and quit/reopen passed in the signed lifecycle build. Cold permission revoke/regrant, sleep/wake, login launch, and fast-user switching remain pending. |
 | Release distribution | Blocked by product decision | The fork retains upstream `com.nuebling.*` IDs and keychain group. Choose owned bundle IDs and keychain migration before signed Release distribution. |
 

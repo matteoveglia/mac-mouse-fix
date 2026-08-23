@@ -2584,7 +2584,6 @@
 		4FFAEBE92E74367300832CE2 /* AddField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddField.swift; sourceTree = "<group>"; };
 		4FFBC5A6266977CA001D389B /* Mac Mouse Fix Helper-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Mac Mouse Fix Helper-Bridging-Header.h"; sourceTree = "<group>"; };
 		4FFBC5A7266977CA001D389B /* DoubleExponentialSmoother.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DoubleExponentialSmoother.swift; sourceTree = "<group>"; };
-		B7E7AF44303B542C0094968F /* Mac Mouse Fix copy-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; name = "Mac Mouse Fix copy-Info.plist"; path = "/Users/matteoveglia/Documents/Coding/mac-mouse-fix/Mac Mouse Fix copy-Info.plist"; sourceTree = "<absolute>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -7250,7 +7249,6 @@
 				4FDB94372FE75270001E05CB /* Tests */,
 				4FCECD8121092354001F1078 /* Products */,
 				4FDECCD528A3A37800DDEE91 /* Frameworks */,
-				B7E7AF44303B542C0094968F /* Mac Mouse Fix copy-Info.plist */,
 			);
 			sourceTree = "<group>";
 		};

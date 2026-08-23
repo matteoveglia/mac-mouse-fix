@@ -77,6 +77,18 @@
 
 @implementation HelperServices
 
+/// ServiceManagement registration is process-global state. Keep changes in
+/// submission order so a fast enable/disable sequence cannot race on a global
+/// concurrent queue and leave the helper registered opposite to the UI.
+static dispatch_queue_t helperServiceOperationQueue(void) {
+    static dispatch_queue_t queue;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        queue = dispatch_queue_create("com.nuebling.mac-mouse-fix.helper-service", DISPATCH_QUEUE_SERIAL);
+    });
+    return queue;
+}
+
 #pragma mark - Interface...
 ///
 ///
@@ -156,7 +168,7 @@
     
     if (@available(macOS 13.0, *)) {
         
-        dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INTERACTIVE, 0), ^{
+        dispatch_async(helperServiceOperationQueue(), ^{
                 
             /// Cleanup
             ///     Remove residue & prevent interference

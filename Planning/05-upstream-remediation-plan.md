@@ -2,7 +2,7 @@
 
 Date: 2026-08-23
 Scope: `noah-nuebling/mac-mouse-fix` upstream and this revival fork
-Status: working plan; this document supersedes `03-backlog-triage.md` and `04-roadmap.md` where they conflict
+Status: active plan; fork PR #1 merged the scrolling/configuration baseline, and this document supersedes `03-backlog-triage.md` and `04-roadmap.md` where they conflict
 
 ## Executive decision
 
@@ -10,7 +10,7 @@ The first upstreamable work should be a small macOS 27 compatibility series:
 
 1. Replace the macOS 27 Dock-swipe event attachment path with the supported runtime-resolved SkyLight setter, and correct the release-velocity sign.
 2. Harden every event-tap creation, enable, disable, and re-enable path so a failed or stale tap cannot crash the helper or silently disable input.
-3. Re-run the scroll and synthetic-input regressions already being addressed in this fork.
+3. Verify the scroll and synthetic-input implementation now merged in fork PR #1.
 4. Only then take on device protocol work, per-application policy, and new actions.
 
 None of the 27 open PRs should be merged wholesale. Several contain useful ideas, but the largest ones bundle unrelated features, carry generated build artifacts, or use private APIs without a safe fallback and a reproducible test. The plan below turns those ideas into small, reviewable work packages.
@@ -102,9 +102,11 @@ The earlier list omitted [#1875](https://github.com/noah-nuebling/mac-mouse-fix/
 
 The title is about five-button behavior on macOS 27, but a comment includes a helper crash with `EXC_BAD_ACCESS` in `CFMachPortGetContext`/`SLEventTapEnable`. Other comments report that plain clicks work while click-drag and click-scroll do not. Treat it as both an event-tap lifecycle crash and an input-path compatibility report, not as a simple Logitech feature request.
 
-### Existing local work is part of the baseline
+### Fork PR #1 establishes the new scrolling baseline
 
-This fork already contains changes for app-enable failure handling, keychain fallback, software-KVM/synthetic mouse and scroll events, signed synthetic wheel deltas, horizontal-axis controls, and scroll settings. The other active chat is also changing feature/configuration behavior. Those changes must be tested and reconciled, not overwritten or duplicated by a cherry-pick from [#1865](https://github.com/noah-nuebling/mac-mouse-fix/pull/1865).
+Fork [PR #1](https://github.com/matteoveglia/mac-mouse-fix/pull/1), `Restore macOS compatibility across app, helper, and configuration`, merged into `master` as `4fac63364` on 2026-08-23. It consolidates the earlier app-enable and keychain safety fixes with software-KVM/synthetic mouse and scroll handling, signed synthetic wheel deltas, axis-specific speed/smoothness controls, and the first app-scoped trackpad-simulation configuration. Horizontal scaling appeared in intermediate commits but is not in the final merged tree.
+
+This replaces the previous assumption that scrolling work was merely in progress. The implementation is now the baseline for WP3 and WP5; do not overwrite it or cherry-pick [#1865](https://github.com/noah-nuebling/mac-mouse-fix/pull/1865). It does not touch the macOS 27 Dock-swipe bridge or harden event-tap lifecycle failures. The PR recorded no application/helper build or functional test run, and its only completed checks were Socket Security reports, so the P0 regression matrix remains mandatory before treating the scroll issues as resolved.
 
 ## 3. Priority order
 
@@ -114,7 +116,7 @@ This fork already contains changes for app-enable failure handling, keychain fal
 |---|---|---|
 | macOS 27 Dock/Spaces/Mission Control | [#1919](https://github.com/noah-nuebling/mac-mouse-fix/issues/1919), [#1931](https://github.com/noah-nuebling/mac-mouse-fix/issues/1931), [#1935](https://github.com/noah-nuebling/mac-mouse-fix/issues/1935), [#1943](https://github.com/noah-nuebling/mac-mouse-fix/issues/1943), [#1945](https://github.com/noah-nuebling/mac-mouse-fix/issues/1945), [#1947](https://github.com/noah-nuebling/mac-mouse-fix/issues/1947), [#1954](https://github.com/noah-nuebling/mac-mouse-fix/issues/1954), [#1961](https://github.com/noah-nuebling/mac-mouse-fix/issues/1961), [#1967](https://github.com/noah-nuebling/mac-mouse-fix/issues/1967), [#1974](https://github.com/noah-nuebling/mac-mouse-fix/issues/1974), [#1978](https://github.com/noah-nuebling/mac-mouse-fix/issues/1978) | Continuous swipe works on macOS 27, including release, reverse direction, multiple displays, and all supported Dock actions |
 | Helper startup/event taps | [#1926](https://github.com/noah-nuebling/mac-mouse-fix/issues/1926), [#1923](https://github.com/noah-nuebling/mac-mouse-fix/issues/1923), [#1909](https://github.com/noah-nuebling/mac-mouse-fix/issues/1909) | No crash or silent disable after launch, permission changes, sleep/wake, or re-enable |
-| Core scroll reliability | [#746](https://github.com/noah-nuebling/mac-mouse-fix/issues/746), [#875](https://github.com/noah-nuebling/mac-mouse-fix/issues/875), [#943](https://github.com/noah-nuebling/mac-mouse-fix/issues/943), [#988](https://github.com/noah-nuebling/mac-mouse-fix/issues/988), [#989](https://github.com/noah-nuebling/mac-mouse-fix/issues/989), [#1081](https://github.com/noah-nuebling/mac-mouse-fix/issues/1081), [#1103](https://github.com/noah-nuebling/mac-mouse-fix/issues/1103), [#1106](https://github.com/noah-nuebling/mac-mouse-fix/issues/1106), [#1147](https://github.com/noah-nuebling/mac-mouse-fix/issues/1147), [#1915](https://github.com/noah-nuebling/mac-mouse-fix/issues/1915), [#1922](https://github.com/noah-nuebling/mac-mouse-fix/issues/1922) | No dead-scroll, heavy-scroll crash, browser jerkiness, or incorrect system speed behavior in the regression matrix |
+| Core scroll reliability | [#746](https://github.com/noah-nuebling/mac-mouse-fix/issues/746), [#875](https://github.com/noah-nuebling/mac-mouse-fix/issues/875), [#943](https://github.com/noah-nuebling/mac-mouse-fix/issues/943), [#988](https://github.com/noah-nuebling/mac-mouse-fix/issues/988), [#989](https://github.com/noah-nuebling/mac-mouse-fix/issues/989), [#1081](https://github.com/noah-nuebling/mac-mouse-fix/issues/1081), [#1103](https://github.com/noah-nuebling/mac-mouse-fix/issues/1103), [#1106](https://github.com/noah-nuebling/mac-mouse-fix/issues/1106), [#1147](https://github.com/noah-nuebling/mac-mouse-fix/issues/1147), [#1915](https://github.com/noah-nuebling/mac-mouse-fix/issues/1915), [#1922](https://github.com/noah-nuebling/mac-mouse-fix/issues/1922) | Implementation baseline merged in fork PR #1; no dead-scroll, heavy-scroll crash, browser jerkiness, or incorrect system speed behavior in the regression matrix |
 | Device capture and extra buttons | [#226](https://github.com/noah-nuebling/mac-mouse-fix/issues/226), [#253](https://github.com/noah-nuebling/mac-mouse-fix/issues/253), [#520](https://github.com/noah-nuebling/mac-mouse-fix/issues/520), [#775](https://github.com/noah-nuebling/mac-mouse-fix/issues/775), [#847](https://github.com/noah-nuebling/mac-mouse-fix/issues/847), [#885](https://github.com/noah-nuebling/mac-mouse-fix/issues/885), [#1214](https://github.com/noah-nuebling/mac-mouse-fix/issues/1214), [#1220](https://github.com/noah-nuebling/mac-mouse-fix/issues/1220), [#1508](https://github.com/noah-nuebling/mac-mouse-fix/issues/1508), [#1932](https://github.com/noah-nuebling/mac-mouse-fix/issues/1932) | Capture behavior is deterministic for supported devices; unsupported HID reports fail visibly rather than fabricating or dropping actions |
 | Virtual/remote input | [#1015](https://github.com/noah-nuebling/mac-mouse-fix/issues/1015), [#1779](https://github.com/noah-nuebling/mac-mouse-fix/pull/1779), [#1952](https://github.com/noah-nuebling/mac-mouse-fix/issues/1952) | Universal Control, iPhone Mirroring, and the supported remote-input cases do not strand the helper or leave stale state |
 
@@ -143,6 +145,7 @@ Old pre-Ventura behavior, issues superseded by native macOS functionality, empty
 2. Build App and Helper from a clean checkout in Debug and Release. Check that local signing, entitlements, bundle identifiers, Sparkle configuration, and helper registration match the intended distribution model.
 3. Add a macOS CI workflow that builds both targets and runs non-UI tests. Keep hardware and Accessibility tests as explicitly labelled manual jobs.
 4. Record a baseline before each functional change. The current feature work from the other chat is part of that baseline; do not reset, stash, or rebase it without coordination.
+5. Test Debug and Release signing separately. Local Debug entitlements intentionally lack the shared keychain group, while the Release configuration and app/helper keychain-sharing behavior remain unverified.
 
 ### WP1 — macOS 27 Dock-swipe bridge
 
@@ -178,15 +181,17 @@ Audit and then centralize the lifecycle of every event tap. The audit must inclu
 
 Acceptance tests include cold launch, launch at login, permission grant/revoke, app disable/re-enable, helper restart, sleep/wake, user switch, device disconnect/reconnect, and a several-hour scroll/click soak. A failed tap must leave the helper alive and make the disabled state actionable.
 
-### WP3 — scroll and synthetic-input reliability
+### WP3 — scroll and synthetic-input reliability (implementation landed; verification active)
 
-Preserve and regression-test the fork’s existing synthetic KVM and signed-delta changes before making further architectural changes.
+Fork PR #1 landed the synthetic KVM, signed-delta, axis-control, and app-scope implementation. Preserve and regression-test that baseline before making further architectural changes.
 
 - Trace one input from hardware or virtual source through capture, transformation, acceleration/smoothing, axis scaling, and output injection.
-- Make signed deltas, zero deltas, low smoothness, high polling rate, and horizontal scaling explicit test cases.
+- Make signed deltas, zero deltas, low smoothness, high polling rate, axis-specific configuration, and synthetic timestamps explicit test cases.
+- Verify that `senderID == 0` and unattached input do not accidentally admit unsupported real hardware events; cover Wacom/tablet input, no-device startup, Accessibility denial, and hot-plug after a failed HID lookup.
 - Compare configured speed with the system scroll-speed setting on Razer and Logitech devices; do not assume the system value is a device-independent multiplier.
 - Re-test Firefox, Chrome/Google Maps, Preview, Mission Control, iPhone Mirroring, Remote Desktop, and Java/Electron apps.
 - Add a state-reset test for heavy scroll, app switch, helper restart, and device hot-unplug so momentum cannot survive into the next session.
+- Create/enable/disable the Scroll event tap through a null-safe lifecycle before claiming scroll reliability. PR #1 did not change the unguarded tap/source/re-enable paths.
 - Separate a true scroll-path regression from a dead event tap or an app-specific incompatibility before changing math.
 
 ### WP4 — Logitech and other device input
@@ -205,7 +210,8 @@ Finish the active fork feature separately from this compatibility series, then c
 
 - Define app identity precedence: bundle identifier, executable path, Java/application wrappers, and fallback process name.
 - Define include/exclude semantics, defaults, inheritance, and what happens when the target app changes while a gesture is in progress.
-- Migrate existing configuration without losing licenses, device settings, or axis values.
+- Migrate existing configuration without losing licenses, device settings, or axis values. The current migration seeds some new values only when the Scrolling tab loads; move that work to a versioned configuration migration so the helper does not depend on UI initialization.
+- Extend app identity beyond a bundle identifier before treating this feature family as resolved: executable paths, Java/wrapper processes, and a controlled process-name fallback need explicit behavior.
 - Keep policy decisions in the app/config layer; the helper should receive a validated immutable snapshot and a clear update boundary.
 - Test a missing/uninstalled app, multiple matching processes, app relaunch, full-screen apps, iPhone Mirroring, and permission denial.
 
@@ -297,7 +303,7 @@ For every issue in a cluster, the response template should record: current repro
 
 ### Devices and input modes
 
-- Generic USB/Bluetooth mouse and trackpad simulation.
+- Generic USB/Bluetooth mouse and trackpad simulation, including a real zero-sender source if one is available.
 - Logitech M650/L, MX Master 3S, Lift, M720, Logi Bolt, and Unifying receiver where available.
 - Razer Basilisk V3 X, Attack Shark X11, high-polling-rate devices, and software KVM/virtual mouse events.
 - Universal Control, iPhone Mirroring, Remote Desktop, and a disconnected/reconnected device.
@@ -307,7 +313,7 @@ For every issue in a cluster, the response template should record: current repro
 - Ordinary left/right/middle/side buttons; click, hold, click-drag, click-scroll, and release.
 - Smooth vertical/horizontal scroll, acceleration/speed, inversion, low smoothness, zero delta, momentum, and stop-scroll.
 - Dock swipe continuous motion, reversal, low/high release velocity, natural/inverted direction, multiple displays, display changes, Spaces, Mission Control, Show Desktop, Launchpad, and move-between-spaces.
-- App switches during a gesture, helper restart, sleep/wake, Accessibility revoke, fast user switching, device hot-unplug, and login launch.
+- App switches during a gesture, helper restart, sleep/wake, Accessibility revoke, fast user switching, device hot-unplug, no-device startup, delayed HID-device discovery, and login launch.
 
 ### Target applications
 
@@ -337,7 +343,7 @@ Finder, Mission Control, Safari, Chrome/Google Maps, Firefox, Preview, a Java/El
 
 The revival is ready for a public fork release and an upstream handoff when:
 
-- App and Helper build from a clean checkout in the declared configurations.
+- App and Helper build from a clean checkout in the declared configurations, including Debug and Release signing/entitlement checks.
 - macOS 26 and 27 core input paths pass the matrix, including Dock swipes and helper restart/permission scenarios.
 - No event tap is enabled or queried after failed creation or teardown.
 - The macOS 27 bridge has a runtime API path, a safe missing-symbol behavior, and a documented legacy path for older systems.

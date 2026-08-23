@@ -101,13 +101,13 @@ static NSCondition *_threadIsInitializedSignal;
     _threadIsInitialized = YES;
     [_threadIsInitializedSignal signal];
     
-    /// Run the runLoop
-    ///     This thread is blocked by the runLoop now
-    ///     TODO: Add an autoreleasepool to this runLoop to prevent abandoned memory. See:
-    ///         - Example implementation: https://stackoverflow.com/questions/11436826/how-to-manage-the-autorelease-pool-of-a-nsrunloop-running-in-a-secondary-thread
-    ///         - Quinn eskimo on abandoned memory: https://developer.apple.com/forums/thread/716261
+    /// Run the run loop in bounded slices so every pass gets its own autorelease pool.
+    /// Event-tap sources are registered in the common modes, which includes the
+    /// default mode used here.
     while (true) {
-        CFRunLoopRun();
+        @autoreleasepool {
+            CFRunLoopRunInMode(kCFRunLoopDefaultMode, 1.0, false);
+        }
     }
 }
 

@@ -106,7 +106,7 @@ The title is about five-button behavior on macOS 27, but a comment includes a he
 
 Fork [PR #1](https://github.com/matteoveglia/mac-mouse-fix/pull/1), `Restore macOS compatibility across app, helper, and configuration`, merged into `master` as `4fac63364` on 2026-08-23. It consolidates the earlier app-enable and keychain safety fixes with software-KVM/synthetic mouse and scroll handling, signed synthetic wheel deltas, axis-specific speed/smoothness controls, and the first app-scoped trackpad-simulation configuration. Horizontal scaling appeared in intermediate commits but is not in the final merged tree.
 
-This replaces the previous assumption that scrolling work was merely in progress. The implementation is now the baseline for WP3 and WP5; do not overwrite it or cherry-pick [#1865](https://github.com/noah-nuebling/mac-mouse-fix/pull/1865). The following fork commit (`70efcfd8c`) added the macOS 27 Dock-swipe bridge and release-velocity correction; the current uncommitted WP2 increment adds creation/source/null guards and desired-state timeout recovery for the active tap owners. Debug App and `Tests` harness builds pass with Xcode 27 unsigned. Hardware, TCC, sleep/wake, and Dock behavior remain manual P0 gates.
+This replaces the previous assumption that scrolling work was merely in progress. The implementation is now the baseline for WP3 and WP5; do not overwrite it or cherry-pick [#1865](https://github.com/noah-nuebling/mac-mouse-fix/pull/1865). Fork commits `70efcfd8c`, `4a12aed0b`, `90b031544`, and `bcc424068` add the macOS 27 Dock-swipe bridge/release-velocity correction, tap creation and desired-state guards, startup command gating, and owned-source shutdown teardown. `878603c25` makes helper disable wait for ServiceManagement completion and requests termination after a successful unregister. Signed Debug App and unsigned `Tests` harness builds pass with Xcode 27. Hardware, TCC, sleep/wake, and Dock behavior remain manual P0 gates.
 
 ## 3. Priority order
 
@@ -170,13 +170,14 @@ Acceptance tests:
 
 Relevant prior art is [#1920](https://github.com/noah-nuebling/mac-mouse-fix/pull/1920), [#1936](https://github.com/noah-nuebling/mac-mouse-fix/pull/1936), [#1938](https://github.com/noah-nuebling/mac-mouse-fix/pull/1938), and [#1950](https://github.com/noah-nuebling/mac-mouse-fix/pull/1950). [#1924](https://github.com/noah-nuebling/mac-mouse-fix/pull/1924) adds an extra retain whose ownership contract is not established; treat it as a comparison, not code to copy. The raw serialization approaches in [#1895](https://github.com/noah-nuebling/mac-mouse-fix/pull/1895) and [#1918](https://github.com/noah-nuebling/mac-mouse-fix/pull/1918) are reference material only.
 
-### WP2 — event-tap lifecycle and helper stability (P0 guards implemented; teardown and runtime matrix pending)
+### WP2 — event-tap lifecycle and helper stability (P0 guards and shutdown teardown implemented; runtime matrix pending)
 
 Audit and then centralize the lifecycle of every event tap. The audit must include `Helper/Core/ModificationUtility.m`, `Helper/Core/Buttons/ButtonInputReceiver.m`, `Helper/Core/Scroll/Scroll.m`, `Helper/Core/PointerFreeze.m`, `Helper/Core/GlobalEventTapThread.m`, and any switch/master input path.
 
 - Completed in the current increment: `Scroll`, `ButtonInputReceiver`, `Modifiers`, `ModifiedDrag`, `PointerFreeze`, `KeyCaptureMode`, and `ModificationUtility` reject failed tap/source creation, avoid `CGEventTapIsEnabled`/`CGEventTapEnable` on null taps, and do not re-enable after a caller has requested stop. New taps are disabled before their run-loop source is attached.
 - Completed in the follow-up increment: the helper now admits only health-check, Accessibility-check, and termination messages until all post-Accessibility modules are initialized; configuration, device, remap, and event-tap commands are rejected during the startup gap.
-- Remaining: retain the source and run loop in an owned tap handle; serialize lifecycle operations; and invalidate/remove/release on helper shutdown.
+- Completed in the shutdown increment: each active tap owner now retains its source, and helper termination disables, invalidates, removes, and releases taps on their owning main or global input run loop. The global input thread supports bounded synchronous work for this teardown path.
+- Remaining: unify tap state in a single owned handle and serialize all non-termination lifecycle operations.
 - Treat a null tap, invalid Mach port, or missing run-loop source as a recoverable state with structured logging, not as a valid tap.
 - Make enable/disable/re-enable idempotent and serialized. Remove sources before releasing taps; never re-enable a tap after ownership has ended.
 - Handle Accessibility/TCC denial, revocation, fast user switching, sleep/wake, and helper registration failure with a retry/back-off path and an accurate menu-bar state.

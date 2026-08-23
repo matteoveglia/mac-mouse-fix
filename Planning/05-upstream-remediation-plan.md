@@ -229,6 +229,8 @@ Finish the active fork feature separately from this compatibility series, then c
 
 After P0/P1 reliability, implement small features one at a time. Momentum arrest, gaming-mode toggle, directional scroll controls, and new button actions should each have a state-machine test and a way to cancel safely. Window movement/resize, rotate/zoom, media/brightness, and timeline scrubbing require app compatibility tests and should not be bundled together. The existing click-cycle hold/level-expiry timers now verify that the original device and button still own the active cycle before firing; a release or replacement cycle is treated as cancellation rather than a force-unwrapped crash or a stale action.
 
+- Completed in the current increment: settings-tab resize transitions are interruptible. A click during the window's spring-resize now cancels the previous timer and frame animation, restores its temporary constraints, and selects the requested tab instead of discarding the click. Signed Debug App and unsigned `Tests` harness builds pass; the launched Debug app switches General and About with one click in each direction. Rapid physical clicking remains part of the manual UX matrix.
+
 ### WP7 — distribution and upstream handoff
 
 - Choose whether the fork publishes signed builds, unsigned developer builds, or both. Document certificates, Sparkle feed ownership, bundle IDs, and helper registration.

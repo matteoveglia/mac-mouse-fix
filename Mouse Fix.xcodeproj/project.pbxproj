@@ -424,6 +424,10 @@
 		4FFAEBEA2E74367300832CE2 /* AddField.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FFAEBE92E74367300832CE2 /* AddField.swift */; };
 		4FFBC5A8266977CA001D389B /* DoubleExponentialSmoother.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FFBC5A7266977CA001D389B /* DoubleExponentialSmoother.swift */; };
 		4FFE2895291B35AA0058ABE0 /* (null) in Sources */ = {isa = PBXBuildFile; };
+		C0D301010000000000000001 /* ApplicationPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0D300010000000000000001 /* ApplicationPolicy.swift */; };
+		C0D301020000000000000001 /* ApplicationPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0D300010000000000000001 /* ApplicationPolicy.swift */; };
+		C0D301030000000000000001 /* MFHIDPPTypes.m in Sources */ = {isa = PBXBuildFile; fileRef = C0D300040000000000000001 /* MFHIDPPTypes.m */; };
+		C0D301040000000000000001 /* MFHIDPPClient.m in Sources */ = {isa = PBXBuildFile; fileRef = C0D300070000000000000001 /* MFHIDPPClient.m */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -2584,6 +2588,14 @@
 		4FFAEBE92E74367300832CE2 /* AddField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddField.swift; sourceTree = "<group>"; };
 		4FFBC5A6266977CA001D389B /* Mac Mouse Fix Helper-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Mac Mouse Fix Helper-Bridging-Header.h"; sourceTree = "<group>"; };
 		4FFBC5A7266977CA001D389B /* DoubleExponentialSmoother.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DoubleExponentialSmoother.swift; sourceTree = "<group>"; };
+		C0D300010000000000000001 /* ApplicationPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplicationPolicy.swift; sourceTree = "<group>"; };
+		C0D300030000000000000001 /* MFHIDPPTypes.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = MFHIDPPTypes.h; sourceTree = "<group>"; };
+		C0D300040000000000000001 /* MFHIDPPTypes.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = MFHIDPPTypes.m; sourceTree = "<group>"; };
+		C0D300050000000000000001 /* MFHIDPPTransport.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = MFHIDPPTransport.h; sourceTree = "<group>"; };
+		C0D300060000000000000001 /* MFHIDPPClient.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = MFHIDPPClient.h; sourceTree = "<group>"; };
+		C0D300070000000000000001 /* MFHIDPPClient.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = MFHIDPPClient.m; sourceTree = "<group>"; };
+		C0D300080000000000000001 /* MFHIDPPFixtureTransport.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = MFHIDPPFixtureTransport.h; sourceTree = "<group>"; };
+		C0D300090000000000000001 /* MFHIDPPFixtureTransport.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = MFHIDPPFixtureTransport.m; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -6727,6 +6739,7 @@
 		4F7F47C828A5A01C00290BBD /* Config */ = {
 			isa = PBXGroup;
 			children = (
+				C0D300010000000000000001 /* ApplicationPolicy.swift */,
 				4F9E59962672A67E004E75F7 /* default_config.plist */,
 				4F19F65E2906BB98007DE4CD /* ConfigReadme.md */,
 				4FF6660D25F2C93A00689B77 /* Config.h */,
@@ -7866,6 +7879,7 @@
 		4FF6667925F2C93A00689B77 /* Devices */ = {
 			isa = PBXGroup;
 			children = (
+				C0D300020000000000000001 /* HIDPP */,
 				4FF6667B25F2C93A00689B77 /* DeviceManager.h */,
 				4FF6667D25F2C93A00689B77 /* DeviceManager.m */,
 				4FD98209292A8C1700645FE3 /* ReactiveDeviceManager.swift */,
@@ -7873,6 +7887,20 @@
 				4FF6667A25F2C93A00689B77 /* Device.m */,
 			);
 			path = Devices;
+			sourceTree = "<group>";
+		};
+		C0D300020000000000000001 /* HIDPP */ = {
+			isa = PBXGroup;
+			children = (
+				C0D300030000000000000001 /* MFHIDPPTypes.h */,
+				C0D300040000000000000001 /* MFHIDPPTypes.m */,
+				C0D300050000000000000001 /* MFHIDPPTransport.h */,
+				C0D300060000000000000001 /* MFHIDPPClient.h */,
+				C0D300070000000000000001 /* MFHIDPPClient.m */,
+				C0D300080000000000000001 /* MFHIDPPFixtureTransport.h */,
+				C0D300090000000000000001 /* MFHIDPPFixtureTransport.m */,
+			);
+			path = HIDPP;
 			sourceTree = "<group>";
 		};
 		4FF8C8A428960309007EC31F /* Old */ = {
@@ -8338,6 +8366,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C0D301010000000000000001 /* ApplicationPolicy.swift in Sources */,
 				4F909D2828A0C3D2009349A2 /* ResizingTabWindow.swift in Sources */,
 				4FA40CF728A0CCCA00499E53 /* Curve.swift in Sources */,
 				4F1B41A52D4BACBA00026C94 /* NSData+Additions.m in Sources */,
@@ -8514,6 +8543,9 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C0D301020000000000000001 /* ApplicationPolicy.swift in Sources */,
+				C0D301030000000000000001 /* MFHIDPPTypes.m in Sources */,
+				C0D301040000000000000001 /* MFHIDPPClient.m in Sources */,
 				4FB8B29F2CCEBB1700A5A580 /* GetTrialState.swift in Sources */,
 				4F9C9B58268A29B70083DED0 /* RollingAverage.swift in Sources */,
 				4FFA4E4428B7D28E0062A1FE /* ConstraintUtility.swift in Sources */,

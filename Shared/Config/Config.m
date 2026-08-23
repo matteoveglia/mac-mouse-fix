@@ -594,6 +594,40 @@ NSDictionary *_Nullable _readDictPlist(NSURL *url, bool mutable, NSError * __aut
                     removeFromConfig(@"Scroll.horizontalScale");
 
                     currentVersion = 25;
+
+                } else if (currentVersion == 25) {
+
+                    /// 25 -> 26
+                    ///     Publish a validated immutable application policy
+                    ///     while preserving the v25 scope/list keys for the
+                    ///     current settings UI.
+
+                    log(Info, "Upgrading configVersion from 25 to 26...");
+
+                    id rawScope = config(@"Scroll.trackpadSimulationScope");
+                    id rawApplications = config(@"Scroll.trackpadSimulationApps");
+                    NSString *scope = rawScope == nil
+                        ? @"all"
+                        : ([rawScope isKindOfClass:NSString.class] ? rawScope : nil);
+                    NSArray *applications = rawApplications == nil
+                        ? @[]
+                        : ([rawApplications isKindOfClass:NSArray.class] ? rawApplications : nil);
+                    MFApplicationPolicySnapshot *snapshot = scope != nil && applications != nil
+                        ? [MFApplicationPolicySnapshot snapshotFromLegacyScope:scope applications:applications]
+                        : nil;
+
+                    if (snapshot != nil) {
+                        setConfig(@"Scroll.applicationPolicy", snapshot.dictionaryRepresentation);
+                    } else {
+                        /// Malformed legacy policy fails closed instead of
+                        /// unexpectedly enabling Trackpad Simulation globally.
+                        setConfig(@"Scroll.applicationPolicy", @{
+                            @"defaultEffect": @"deny",
+                            @"rules": @[],
+                        });
+                    }
+
+                    currentVersion = 26;
                     
                 } else {
                     

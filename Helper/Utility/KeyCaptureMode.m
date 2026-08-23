@@ -24,6 +24,26 @@ CFMachPortRef _keyCaptureEventTap;
 static CFRunLoopSourceRef _keyCaptureEventTapSource;
 static BOOL _keyCaptureModeEnabled;
 
+static BOOL setKeyCaptureEventTapEnabled(BOOL enabled, const char *reason) {
+    NSString *operation = enabled ? @"enable" : @"disable";
+    NSString *logReason = reason ? [NSString stringWithUTF8String:reason] : @"unknown";
+
+    if (_keyCaptureEventTap == NULL) {
+        DDLogError("KeyCaptureMode: can't %@ key-capture event tap because it was not created. reason=%@", operation, logReason);
+        return NO;
+    }
+
+    if (CGEventTapIsEnabled(_keyCaptureEventTap) == enabled) return YES;
+
+    CGEventTapEnable(_keyCaptureEventTap, enabled);
+    if (CGEventTapIsEnabled(_keyCaptureEventTap) != enabled) {
+        DDLogError("KeyCaptureMode: failed to %@ key-capture event tap. reason=%@", operation, logReason);
+        return NO;
+    }
+
+    return YES;
+}
+
 + (void)enable {
     
     DDLogInfo("Enabling keyCaptureMode");
@@ -38,13 +58,14 @@ static BOOL _keyCaptureModeEnabled;
     }
 
     _keyCaptureModeEnabled = YES;
-    CGEventTapEnable(_keyCaptureEventTap, true);
+    if (!setKeyCaptureEventTapEnabled(YES, "enable")) {
+        _keyCaptureModeEnabled = NO;
+    }
 }
 
 + (void)disable {
     _keyCaptureModeEnabled = NO;
-    if (_keyCaptureEventTap == NULL) return;
-    CGEventTapEnable(_keyCaptureEventTap, false);
+    setKeyCaptureEventTapEnabled(NO, "disable");
 }
 
 + (void)shutdown {
@@ -57,7 +78,9 @@ CGEventRef  _Nullable keyCaptureModeCallback(CGEventTapProxy proxy, CGEventType 
     if (type == kCGEventTapDisabledByTimeout || type == kCGEventTapDisabledByUserInput) {
         DDLogWarn("KeyCaptureMode event tap disabled by %@.", type == kCGEventTapDisabledByTimeout ? @"timeout" : @"user input");
         if (type == kCGEventTapDisabledByTimeout && _keyCaptureModeEnabled && _keyCaptureEventTap != NULL) {
-            CGEventTapEnable(_keyCaptureEventTap, true);
+            if (!setKeyCaptureEventTapEnabled(YES, "eventTapDisabledByTimeout")) {
+                _keyCaptureModeEnabled = NO;
+            }
         }
         return event;
     }

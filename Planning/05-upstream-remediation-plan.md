@@ -1,8 +1,8 @@
 # 05 — Upstream Remediation Plan
 
-Date: 2026-08-23
+Date: 2026-08-24
 Scope: `noah-nuebling/mac-mouse-fix` upstream and this revival fork
-Status: active plan; fork PR #1 merged the scrolling/configuration baseline, fork PR #2 carries the P0 compatibility series, and `codex/remediation-p1` carries the first P1 architecture increments. This document supersedes `03-backlog-triage.md` and `04-roadmap.md` where they conflict.
+Status: active plan; fork PR #1 merged the scrolling/configuration baseline, fork PR #2 carries the P0 compatibility series, `codex/remediation-p1` carries the first P1 architecture increments, and fork PR #6 carries the generation-based scroll reset and helper-registration recovery work. This document supersedes `03-backlog-triage.md` and `04-roadmap.md` where they conflict.
 
 ## Executive decision
 
@@ -190,6 +190,7 @@ Audit and then centralize the lifecycle of every event tap. The audit includes `
 - Completed in the owned-lifecycle increment: `MFEventTapHandle` now owns tap creation, the run-loop source, desired state, idempotent enable/disable, timeout recovery state, and one-time teardown. `Scroll`, `ButtonInputReceiver`, `Modifiers`, `ModifiedDrag`, `PointerFreeze`, and `KeyCaptureMode` use the handle on their existing main/global run loops and no longer query or enable raw taps from their caller queues.
 - Deterministic fake-backend tests cover tap/source creation failure, inert creation, idempotent enable, refused enable, late-enable rejection, stable teardown order, and exactly-once release. Debug, Release, and the existing Tests target build successfully with Xcode 27 after the migration.
 - Runtime-verified in the signed lifecycle build: rapid disable/enable cycling, quit/reopen, shortcut capture, normal buttons and scrolling, and modified-drag teardown all passed without a stuck or hidden pointer.
+- Login Items setup evidence: a disposable build was not discoverable in System Settings, while the signed app became discoverable after it was moved into the user’s `~/Applications` folder. Use a stable installed app path for ServiceManagement and launch-at-login verification; do not treat a temporary build location as a product failure or as a valid cold-launch test.
 - Remaining runtime work: exercise forced timeout recovery, permission revocation/regrant, sleep/wake, fast-user switching, and a longer click/scroll soak.
 - Treat a null tap, invalid Mach port, or missing run-loop source as a recoverable state with structured logging, not as a valid tap.
 - Make enable/disable/re-enable idempotent and serialized. Remove sources before releasing taps; never re-enable a tap after ownership has ended.
@@ -212,7 +213,7 @@ Fork PR #1 landed the synthetic KVM, signed-delta, axis-control, and app-scope i
 - Compare configured speed with the system scroll-speed setting on Razer and Logitech devices; do not assume the system value is a device-independent multiplier.
 - Re-test Firefox, Chrome/Google Maps, Preview, Mission Control, iPhone Mirroring, Remote Desktop, and Java/Electron apps.
 - Add a state-reset test for heavy scroll, app switch, helper restart, and device hot-unplug so momentum cannot survive into the next session.
-- Completed in the scroll-reset increment: reset boundaries advance an atomic generation before canceling queued scroll work, smooth-scroll animation callbacks, and gesture momentum callbacks. Enable/disable transitions, shutdown, modifier changes, and removal of an attached device synchronously clear analyzer counters, cached configuration, subpixel state, momentum input history, and any Command-Tab modifier held by the active scroll series. The generation reducer has deterministic stale-work, repeated-reset, and wraparound coverage in CI; Debug and Release Helper builds pass. Signed runtime interruption checks remain required before this row is closed.
+- Completed in the scroll-reset increment: reset boundaries advance an atomic generation before canceling queued scroll work, smooth-scroll animation callbacks, and gesture momentum callbacks. Enable/disable transitions, shutdown, modifier changes, and removal of an attached device synchronously clear analyzer counters, cached configuration, subpixel state, momentum input history, and any Command-Tab modifier held by the active scroll series. The generation reducer has deterministic stale-work, repeated-reset, and wraparound coverage in CI; Debug and Release Helper builds pass. The user’s signed installed build passed the runtime scroll-reset checks with a remote mouse; browser maps, iPhone Mirroring, and broader device/source combinations remain explicit gates.
 - The Scroll event tap now has a null-safe create/enable/disable/recovery path; run the P0 manual matrix before claiming scroll reliability.
 - The asynchronous scroll diagnostics no longer dereference a sending `IOHIDDeviceRef`: that object can be stale after a disconnect, and the existing crash signature was in `IOHIDDeviceGetProperty`. Diagnostics log the event's copied sender ID instead. The real device disconnect/reconnect matrix remains an explicit runtime gate.
 - Separate a true scroll-path regression from a dead event tap or an app-specific incompatibility before changing math.

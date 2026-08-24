@@ -1,6 +1,6 @@
 # Remediation Test Matrix
 
-Updated: 2026-08-23 · Branches: `codex/remediation-p0`, `codex/remediation-p1`, `codex/remediation-lifecycle`, `codex/remediation-dock-payload`, `codex/remediation-scroll-reset`
+Updated: 2026-08-24 · Branches: `codex/remediation-p0`, `codex/remediation-p1`, `codex/remediation-lifecycle`, `codex/remediation-dock-payload`, `codex/remediation-scroll-reset`
 
 This records current evidence for the compatibility remediation. A successful
 build is not evidence that the input path works on physical hardware, so those
@@ -23,14 +23,14 @@ checks remain explicitly open.
 | Device hot-unplug | Pass | The signed P1 build retained button remapping and helper operation across the requested unplug/reconnect check. Transport-specific Logitech HID++ reprogramming remains outside this result. |
 | Event-tap ownership core | Pass | Fake-backend tests cover failed tap/source creation, inert creation, idempotent toggles, refused enable, late-enable rejection, stable teardown order, and exactly-once release. The signed lifecycle build also passed rapid disable/enable cycling, quit/reopen, shortcut capture, normal buttons/scrolling, and modified-drag teardown. |
 | Pointer-freeze / two-finger drag | Pass | The signed lifecycle build completed modified-drag testing without leaving the real pointer frozen or hidden. Extended soak and interruption testing remains part of the broader lifecycle matrix. |
-| Scroll and virtual/remote input | Partial pass | Fast scrolling works with a mouse remote to this machine. The scroll-reset branch deterministically rejects stale queued/animation generations and compiles in Debug and Release; signed runtime checks for disable/re-enable during momentum, helper restart, hot-unplug during momentum, app-switch boundaries, and Command-Tab release remain pending. Browser maps and iPhone Mirroring/other remote sources remain broader gates. Do not assess horizontal scaling: it is intentionally not part of this fork. |
+| Scroll and virtual/remote input | Pass for tested signed build | Fast scrolling and the scroll-reset interruption checks passed on the user’s signed build using a mouse remote to this machine. The branch deterministically rejects stale queued/animation generations and compiles in Debug and Release. Browser maps, iPhone Mirroring, other remote sources, and wider hardware combinations remain broader compatibility gates. Do not assess horizontal scaling: it is intentionally not part of this fork. |
 | Dock swipes | Pass on local signed build | Reducer and bridge suites pass. The signed Xcode 27 build passed Spaces, Mission Control, Show Desktop, and Launchpad in normal/inverted directions, including reversal and slow/fast release, with no rebound or stuck transition. Multiple-display arrangements and deliberately overlapping scroll/drag attempts remain broader compatibility gates. |
-| Accessibility / lifecycle | Partial pass | Rapid disable/enable cycling and quit/reopen passed in the signed lifecycle build. Cold permission revoke/regrant, sleep/wake, login launch, and fast-user switching remain pending. |
+| Accessibility / lifecycle | Partial pass | Rapid disable/enable cycling and quit/reopen passed in the signed lifecycle build. The user confirmed that Login Items became discoverable after moving the signed app into `~/Applications`; transient/disposable build locations are not valid Login Items test targets. Cold permission revoke/regrant, sleep/wake, login launch from a cold boot, and fast-user switching remain pending. |
 | Release distribution | Blocked by product decision | The fork retains upstream `com.nuebling.*` IDs and keychain group. Choose owned bundle IDs and keychain migration before signed Release distribution. |
 
 ## Test protocol
 
-1. Build the signed Debug App from this branch.
+1. Build and install the signed Debug App from this branch at a stable location, preferably `~/Applications/Mac Mouse Fix.app`; do not use a disposable `/tmp` bundle for Login Items or launch-at-login tests.
 2. Enable Mac Mouse Fix from the General tab and wait for Buttons and Scrolling to become available.
 3. Run one row at a time. If an input path fails, capture the app version, macOS build, device/connection type, target app, and the smallest reproducible sequence.
 4. Disable Mac Mouse Fix at the end and verify the helper job is gone if the test intentionally leaves it disabled.

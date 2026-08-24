@@ -258,11 +258,15 @@ import Cocoa
     private func trackpadSimulationEnabled(for applicationIdentity: ApplicationIdentity?) -> Bool {
         guard (c("trackpadSimulation") as? Bool) == true else { return false }
 
+        let scope = (c("trackpadSimulationScope") as? String) ?? "all"
         let snapshot: ApplicationPolicySnapshot?
-        if let dictionary = c("applicationPolicy") as? NSDictionary {
-            snapshot = ApplicationPolicySnapshot.snapshotFromDictionary(dictionary)
+        if scope == "advanced" {
+            guard let dictionary = c("applicationPolicy") as? NSDictionary,
+                  let canonical = ApplicationPolicySnapshot.snapshotFromDictionary(dictionary) else {
+                return false
+            }
+            snapshot = canonical.advancedScopeSnapshot()
         } else {
-            let scope = (c("trackpadSimulationScope") as? String) ?? "all"
             let appBundleIDs = (c("trackpadSimulationApps") as? NSArray) ?? []
             snapshot = ApplicationPolicySnapshot.snapshotFromLegacyScope(scope, applications: appBundleIDs)
         }

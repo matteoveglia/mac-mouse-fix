@@ -628,6 +628,35 @@ NSDictionary *_Nullable _readDictPlist(NSURL *url, bool mutable, NSError * __aut
                     }
 
                     currentVersion = 26;
+
+                } else if (currentVersion == 26) {
+
+                    /// 26 -> 27
+                    ///     Make an existing canonical policy with exact
+                    ///     selectors opt into the explicit Advanced mode.
+                    ///     Legacy scope changes can then temporarily ignore
+                    ///     those selectors without deleting them.
+
+                    log(Info, "Upgrading configVersion from 26 to 27...");
+
+                    NSDictionary *rawPolicy = [config(@"Scroll.applicationPolicy") isKindOfClass:NSDictionary.class]
+                        ? (NSDictionary *)config(@"Scroll.applicationPolicy")
+                        : nil;
+                    NSArray *rawRules = [rawPolicy[@"rules"] isKindOfClass:NSArray.class]
+                        ? rawPolicy[@"rules"]
+                        : @[];
+                    BOOL hasAdvancedRule = NO;
+                    for (id rawRule in rawRules) {
+                        if (![rawRule isKindOfClass:NSDictionary.class]) continue;
+                        NSString *kind = ((NSDictionary *)rawRule)[@"kind"];
+                        if ([kind isKindOfClass:NSString.class] && ![kind isEqualToString:@"bundleIdentifier"]) {
+                            hasAdvancedRule = YES;
+                            break;
+                        }
+                    }
+                    if (hasAdvancedRule) setConfig(@"Scroll.trackpadSimulationScope", @"advanced");
+
+                    currentVersion = 27;
                     
                 } else {
                     

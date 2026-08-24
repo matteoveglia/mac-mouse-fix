@@ -9,6 +9,11 @@
 
 Here, we document, what exactly changed as we increased the configVersion
 
+**26 -> 27**
+
+- Existing canonical policies containing executable, wrapper, or process-name selectors now open in the explicit `advanced` Trackpad Simulation scope.
+- Legacy scope changes continue to preserve those advanced selectors for later reuse, while the helper evaluates only the selected scope.
+
 **25 -> 26**
 
 - Added the canonical `Scroll.applicationPolicy` snapshot used by the helper at scroll-series boundaries.

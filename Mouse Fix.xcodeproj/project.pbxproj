@@ -355,6 +355,8 @@
 		4FF6654225F2C7B000689B77 /* default_launchd.plist in Resources */ = {isa = PBXBuildFile; fileRef = 4FF6652E25F2C7B000689B77 /* default_launchd.plist */; };
 		4FF6654325F2C7B000689B77 /* HelperServices.m in Sources */ = {isa = PBXBuildFile; fileRef = 4FF6652F25F2C7B000689B77 /* HelperServices.m */; };
 		4FF6654425F2C7B000689B77 /* HelperServices.m in Sources */ = {isa = PBXBuildFile; fileRef = 4FF6652F25F2C7B000689B77 /* HelperServices.m */; };
+		D1A000010000000000000001 /* MFHelperServiceRegistration.m in Sources */ = {isa = PBXBuildFile; fileRef = D1A000030000000000000001 /* MFHelperServiceRegistration.m */; };
+		D1A000020000000000000001 /* MFHelperServiceRegistration.m in Sources */ = {isa = PBXBuildFile; fileRef = D1A000030000000000000001 /* MFHelperServiceRegistration.m */; };
 		4FF6654525F2C7B000689B77 /* Locator.m in Sources */ = {isa = PBXBuildFile; fileRef = 4FF6653225F2C7B000689B77 /* Locator.m */; };
 		4FF6654625F2C7B000689B77 /* Locator.m in Sources */ = {isa = PBXBuildFile; fileRef = 4FF6653225F2C7B000689B77 /* Locator.m */; };
 		4FF6654D25F2C7B000689B77 /* SharedUtility.m in Sources */ = {isa = PBXBuildFile; fileRef = 4FF6653B25F2C7B000689B77 /* SharedUtility.m */; };
@@ -2471,6 +2473,8 @@
 		4FF6653125F2C7B000689B77 /* Locator.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = Locator.h; sourceTree = "<group>"; };
 		4FF6653225F2C7B000689B77 /* Locator.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = Locator.m; sourceTree = "<group>"; };
 		4FF6653325F2C7B000689B77 /* Constants.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = Constants.h; sourceTree = "<group>"; };
+		D1A000030000000000000001 /* MFHelperServiceRegistration.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = MFHelperServiceRegistration.m; sourceTree = "<group>"; };
+		D1A000040000000000000001 /* MFHelperServiceRegistration.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MFHelperServiceRegistration.h; sourceTree = "<group>"; };
 		4FF6653825F2C7B000689B77 /* NSArray+Additions.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "NSArray+Additions.h"; sourceTree = "<group>"; };
 		4FF6653925F2C7B000689B77 /* NSDictionary+Additions.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "NSDictionary+Additions.h"; sourceTree = "<group>"; };
 		4FF6653B25F2C7B000689B77 /* SharedUtility.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = SharedUtility.m; sourceTree = "<group>"; };
@@ -7512,6 +7516,8 @@
 				4F9111F4289FF03200D2DD8C /* sm_launchd.plist */,
 				4FF6652D25F2C7B000689B77 /* HelperServices.h */,
 				4FF6652F25F2C7B000689B77 /* HelperServices.m */,
+				D1A000040000000000000001 /* MFHelperServiceRegistration.h */,
+				D1A000030000000000000001 /* MFHelperServiceRegistration.m */,
 			);
 			path = HelperServices;
 			sourceTree = "<group>";
@@ -8553,6 +8559,7 @@
 				4F92A72D260F6C7800529D1F /* NSView+Additions.m in Sources */,
 				4F92A73A260F73C600529D1F /* KeyCaptureView.m in Sources */,
 				4FF6654425F2C7B000689B77 /* HelperServices.m in Sources */,
+				D1A000010000000000000001 /* MFHelperServiceRegistration.m in Sources */,
 				4F909D3528A0C3D2009349A2 /* Animate.swift in Sources */,
 				4FA40D0328A0D0BB00499E53 /* PolynomialRegression.m in Sources */,
 				4FA40CFE28A0CCCB00499E53 /* HybridCurves.swift in Sources */,
@@ -8719,6 +8726,7 @@
 				4F3A40DA266C5BDF00436821 /* NSScreen+Additions.m in Sources */,
 				4FCEDC93292D765600E7DA2A /* Constants.swift in Sources */,
 				4FF6654325F2C7B000689B77 /* HelperServices.m in Sources */,
+				D1A000020000000000000001 /* MFHelperServiceRegistration.m in Sources */,
 				4FA994BE26678AC90007F003 /* ScrollAnalyzer.m in Sources */,
 				4F9C9B60268A29FE0083DED0 /* Smoother.swift in Sources */,
 				4FDE759F28B174E700662314 /* TrialCounter.swift in Sources */,

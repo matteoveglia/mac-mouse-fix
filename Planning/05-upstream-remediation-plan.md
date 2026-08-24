@@ -2,7 +2,7 @@
 
 Date: 2026-08-24
 Scope: `noah-nuebling/mac-mouse-fix` upstream and this revival fork
-Status: active plan; fork PR #1 merged the scrolling/configuration baseline, fork PR #2 carries the P0 compatibility series, `codex/remediation-p1` carries the first P1 architecture increments, and fork PR #6 carries the generation-based scroll reset and helper-registration recovery work. This document supersedes `03-backlog-triage.md` and `04-roadmap.md` where they conflict.
+Status: active plan; fork PR #1 merged the scrolling/configuration baseline, fork PR #2 carries the P0 compatibility series, `codex/remediation-p1` carries the first P1 architecture increments, fork PR #6 carries the generation-based scroll reset and helper-registration recovery work, and `codex/remediation-login-items` carries the installed-path registration increment. This document supersedes `03-backlog-triage.md` and `04-roadmap.md` where they conflict.
 
 ## Executive decision
 
@@ -191,6 +191,7 @@ Audit and then centralize the lifecycle of every event tap. The audit includes `
 - Deterministic fake-backend tests cover tap/source creation failure, inert creation, idempotent enable, refused enable, late-enable rejection, stable teardown order, and exactly-once release. Debug, Release, and the existing Tests target build successfully with Xcode 27 after the migration.
 - Runtime-verified in the signed lifecycle build: rapid disable/enable cycling, quit/reopen, shortcut capture, normal buttons and scrolling, and modified-drag teardown all passed without a stuck or hidden pointer.
 - Login Items setup evidence: a disposable build was not discoverable in System Settings, while the signed app became discoverable after it was moved into the user’s `~/Applications` folder. Use a stable installed app path for ServiceManagement and launch-at-login verification; do not treat a temporary build location as a product failure or as a valid cold-launch test.
+- Completed in the Login Items increment: registration now rejects disposable build locations, validates that the current app resolves its embedded helper and agent plist from the same bundle, and reconciles `SMAppService` status after register/unregister. A successful API call with `RequiresApproval`, `NotRegistered`, or `NotFound` is no longer reported to the UI as an enabled helper. Pure tests cover installed, moved, duplicate, and disposable bundle paths plus enable/disable status transitions; macOS still owns the final registration state.
 - Remaining runtime work: exercise forced timeout recovery, permission revocation/regrant, sleep/wake, fast-user switching, and a longer click/scroll soak.
 - Treat a null tap, invalid Mach port, or missing run-loop source as a recoverable state with structured logging, not as a valid tap.
 - Make enable/disable/re-enable idempotent and serialized. Remove sources before releasing taps; never re-enable a tap after ownership has ended.

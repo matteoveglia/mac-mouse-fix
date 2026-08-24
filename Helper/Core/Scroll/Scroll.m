@@ -28,6 +28,7 @@
 #import "EventUtility.h"
 #import "MathObjc.h"
 #import "MFEventTapHandle.h"
+#import "MFScrollGeneration.h"
 
 @import IOKit;
 #import "MFHIDEventImports.h"
@@ -47,6 +48,7 @@ static CGEventSourceRef _eventSource;
 static CGEventRef eventTapCallback(CGEventTapProxy proxy, CGEventType type, CGEventRef event, void *userInfo);
 
 static dispatch_queue_t _scrollQueue;
+static char _scrollQueueSpecificKey;
 
 static TouchAnimator *_animator;
 
@@ -84,7 +86,30 @@ static ScrollConfig *_scrollConfig;
 static MFScrollAnimationCurveParameters *_animationParams;
 static ScrollAnalysisResult _lastScrollAnalysisResult;
 static CFTimeInterval _lastScrollAnalysisResultTimeStamp;
+static MFScrollGeneration _scrollGeneration = MF_SCROLL_GENERATION_INITIALIZER;
+static _Atomic(bool) _scrollResetAllowsTerminalCallback = false;
+static MFMomentumHint _lastMomentumHint = kMFMomentumHintNone;
+static VectorSubPixelator *_continuousScrollLinePixelator;
+static BOOL _appSwitcherIsOpen = NO;
+static bool _appSwitcherWasOpenedByCurrentConsecutiveTicks = false;
 //static BOOL _isSuspended = NO; TODO: Remove suspension stuff (already commented out)
+
+typedef enum {
+    kMFScrollOutputTypeGestureScroll,
+    kMFScrollOutputTypeContinuousScroll,
+    kMFScrollOutputTypeLineScroll,
+    kMFScrollOutputTypeFourFingerPinch,
+    kMFScrollOutputTypeThreeFingerSwipeHorizontal,
+    kMFScrollOutputTypeZoom,
+    kMFScrollOutputTypeRotation,
+    kMFScrollOutputTypeCommandTab,
+} MFScrollOutputType;
+
+void resetState_Unsafe(void);
+void resetStateComponents_Unsafe(void);
+static void heavyProcessing(CGEventRef event, int64_t scrollDeltaAxis1, int64_t scrollDeltaAxis2, CFTimeInterval tickTS, uint64_t generation);
+static void sendScroll(int64_t px, MFDirection scrollDirection, BOOL animated, MFAnimationCallbackPhase animationPhase, MFMomentumHint momentumHint, ScrollConfig *config, uint64_t generation, bool allowStaleTerminal);
+static void sendOutputEvents(int64_t dx, int64_t dy, MFScrollOutputType outputType, MFAnimationCallbackPhase animatorPhase, MFMomentumHint momentumHint, ScrollConfig *config, uint64_t generation, bool allowStaleTerminal);
 
 #pragma mark - Public functions
 
@@ -95,6 +120,7 @@ static CFTimeInterval _lastScrollAnalysisResultTimeStamp;
     if (_scrollQueue == NULL) {
         dispatch_queue_attr_t attr = dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_USER_INTERACTIVE, -1);
         _scrollQueue = dispatch_queue_create("com.nuebling.mac-mouse-fix.helper.scroll", attr);
+        dispatch_queue_set_specific(_scrollQueue, &_scrollQueueSpecificKey, &_scrollQueueSpecificKey, NULL);
     }
     
     /// Create AXUIElement for getting app under mouse pointer
@@ -120,28 +146,48 @@ static CFTimeInterval _lastScrollAnalysisResultTimeStamp;
 }
 
 + (void)resetState {
-    if (_scrollQueue == NULL) {
-        DDLogWarn("Scroll.m: ignoring reset before the scroll queue has been initialized.");
-        return;
-    }
-    dispatch_async(_scrollQueue, ^{
-        resetState_Unsafe();
-    });
+    [self resetStateSync];
 }
-void resetState_Sync(void) {
++ (void)resetStateSync {
     if (_scrollQueue == NULL) {
         DDLogWarn("Scroll.m: ignoring synchronous reset before the scroll queue has been initialized.");
         return;
     }
-    dispatch_sync(_scrollQueue, ^{
-        resetState_Unsafe();
-    });
+    MFScrollGenerationAdvance(&_scrollGeneration);
+    if (dispatch_get_specific(&_scrollQueueSpecificKey) != NULL) {
+        resetStateComponents_Unsafe();
+        MFScrollGenerationAdvance(&_scrollGeneration);
+    } else {
+        dispatch_sync(_scrollQueue, ^{
+            resetStateComponents_Unsafe();
+            MFScrollGenerationAdvance(&_scrollGeneration);
+        });
+    }
 }
 void resetState_Unsafe(void) {
+    MFScrollGenerationAdvance(&_scrollGeneration);
+    resetStateComponents_Unsafe();
+    MFScrollGenerationAdvance(&_scrollGeneration);
+}
+void resetStateComponents_Unsafe(void) {
     DDLogDebug("Scroll.m: reset-animator");
+    atomic_store_explicit(&_scrollResetAllowsTerminalCallback, true, memory_order_release);
     [_animator cancel];
-    [GestureScrollSimulator stopMomentumScroll]; /// Not sure if appropriate
+    [_animator resetSubPixelator];
+    [_animator synchronizePendingOperations];
+    atomic_store_explicit(&_scrollResetAllowsTerminalCallback, false, memory_order_release);
+    [GestureScrollSimulator resetStateSync];
     [ScrollAnalyzer resetState];
+    [_continuousScrollLinePixelator reset];
+
+    _modifications = (MFScrollModificationResult){0};
+    _scrollConfig = nil;
+    _animationParams = nil;
+    _lastScrollAnalysisResult = (ScrollAnalysisResult){0};
+    _lastScrollAnalysisResultTimeStamp = 0;
+    _lastMomentumHint = kMFMomentumHintNone;
+    _appSwitcherWasOpenedByCurrentConsecutiveTicks = false;
+    [Scroll appSwitcherModificationHasBeenDeactivated];
 }
 
 //+ (void)suspend {
@@ -168,6 +214,7 @@ void resetState_Unsafe(void) {
     }
 
     if (!createScrollEventTap()) return;
+    if (!_eventTapHandle.desiredEnabled) [Scroll resetStateSync];
     setScrollEventTapEnabled(YES, "startReceiving");
     
 }
@@ -178,10 +225,14 @@ void resetState_Unsafe(void) {
     /// - Are there other things we should enable/disable here? ScrollModifiers.reactToModiferChange() comes to mind
     /// - Also see notes for `- startReceiving`
     
-    setScrollEventTapEnabled(NO, "stopReceiving");
+    if (_eventTapHandle.desiredEnabled) {
+        setScrollEventTapEnabled(NO, "stopReceiving");
+        [Scroll resetStateSync];
+    }
 }
 
 + (void)shutdown {
+    if (_scrollQueue != NULL) [Scroll resetStateSync];
     [_eventTapHandle invalidate];
     _eventTapHandle = nil;
 }
@@ -344,12 +395,18 @@ static CGEventRef eventTapCallback(CGEventTapProxy proxy, CGEventType type, CGEv
     /// Create copy of event
     
     CGEventRef eventCopy = CGEventCreateCopy(event); /// Create a copy, because the original event will become invalid and unusable in the new queue.
+    if (!eventCopy) return event;
+    uint64_t generation = MFScrollGenerationCurrent(&_scrollGeneration);
     
     /// Enqueue heavy processing
     ///  Executing heavy stuff on a different thread to prevent the eventTap from timing out. We wrote this before knowing that you can just re-enable the eventTap when it times out. But this doesn't hurt.
     
     dispatch_async(_scrollQueue, ^{
-        heavyProcessing(eventCopy, scrollDeltaAxis1, scrollDeltaAxis2, tickTime);
+        if (!MFScrollGenerationIsCurrent(&_scrollGeneration, generation)) {
+            CFRelease(eventCopy);
+            return;
+        }
+        heavyProcessing(eventCopy, scrollDeltaAxis1, scrollDeltaAxis2, tickTime, generation);
     });
     
     return NULL;
@@ -357,7 +414,7 @@ static CGEventRef eventTapCallback(CGEventTapProxy proxy, CGEventType type, CGEv
 
 #pragma mark - Main event processing
 
-static void heavyProcessing(CGEventRef event, int64_t scrollDeltaAxis1, int64_t scrollDeltaAxis2, CFTimeInterval tickTS) {
+static void heavyProcessing(CGEventRef event, int64_t scrollDeltaAxis1, int64_t scrollDeltaAxis2, CFTimeInterval tickTS, uint64_t generation) {
     
     /// Declare stuff for later
     static DriverUnsuspender unsuspendDrivers = ^{}; /// This is old stuff that should be removed I think [Jun 2 2025]
@@ -449,6 +506,7 @@ static void heavyProcessing(CGEventRef event, int64_t scrollDeltaAxis1, int64_t 
                 if (didChange) {
                     DDLogDebug("Scroll.m: Config did change. Resetting state.");
                     resetState_Unsafe();
+                    generation = MFScrollGenerationCurrent(&_scrollGeneration);
                 }
             }
         }
@@ -467,6 +525,7 @@ static void heavyProcessing(CGEventRef event, int64_t scrollDeltaAxis1, int64_t 
         MFScrollModificationResult newMods = [ScrollModifiers currentModificationsWithEvent:event];
         if (![ScrollModifiers scrollModsAreEqual:newMods other:_modifications]) {
             resetState_Unsafe();
+            generation = MFScrollGenerationCurrent(&_scrollGeneration);
             _modifications = newMods;
         }
         
@@ -616,7 +675,7 @@ static void heavyProcessing(CGEventRef event, int64_t scrollDeltaAxis1, int64_t 
     } else if (!_scrollConfig.smoothEnabled) {
         
         /// Send scroll event directly - without the animator. Will scroll all of pxToScrollForThisTick at once.
-        sendScroll(pxToScrollForThisTick, scrollDirection, NO, kMFAnimationCallbackPhaseNone, kMFMomentumHintNone, _scrollConfig);
+        sendScroll(pxToScrollForThisTick, scrollDirection, NO, kMFAnimationCallbackPhaseNone, kMFMomentumHintNone, _scrollConfig, generation, false);
         
     } else {
         
@@ -630,7 +689,11 @@ static void heavyProcessing(CGEventRef event, int64_t scrollDeltaAxis1, int64_t 
         
         /// Start animation
         
+        uint64_t animationGeneration = generation;
         [_animator startWithParams:^NSDictionary<NSString *,id> * _Nonnull(Vector valueLeftVec, BOOL isRunning, Curve *animationCurve, Vector currentSpeed) {
+            if (!MFScrollGenerationIsCurrent(&_scrollGeneration, animationGeneration)) {
+                return @{ @"doStart": @NO };
+            }
             
             /// Validate
             assert(valueLeftVec.x == 0 || valueLeftVec.y == 0);
@@ -856,6 +919,10 @@ static void heavyProcessing(CGEventRef event, int64_t scrollDeltaAxis1, int64_t 
             return p;
             
         } integerCallback:^(Vector distanceDeltaVec, MFAnimationCallbackPhase animationPhase, MFMomentumHint momentumHint) {
+            bool generationIsCurrent = MFScrollGenerationIsCurrent(&_scrollGeneration, animationGeneration);
+            bool isResetTerminal = !generationIsCurrent && animationPhase == kMFAnimationCallbackPhaseCanceled;
+            bool resetInProgress = atomic_load_explicit(&_scrollResetAllowsTerminalCallback, memory_order_acquire);
+            if (!MFScrollGenerationAllowsCallback(&_scrollGeneration, animationGeneration, isResetTerminal, resetInProgress)) return;
             
             /// This will be called each frame
             
@@ -891,7 +958,7 @@ static void heavyProcessing(CGEventRef event, int64_t scrollDeltaAxis1, int64_t 
             }
             
             /// Send scroll
-            sendScroll(distanceDelta, scrollDirection, YES, animationPhase, momentumHint, config);
+            sendScroll(distanceDelta, scrollDirection, YES, animationPhase, momentumHint, config, animationGeneration, isResetTerminal && resetInProgress);
             
         }];
     }
@@ -901,7 +968,9 @@ static void heavyProcessing(CGEventRef event, int64_t scrollDeltaAxis1, int64_t 
 
 #pragma mark - Send Scroll events
 
-static void sendScroll(int64_t px, MFDirection scrollDirection, BOOL animated, MFAnimationCallbackPhase animationPhase, MFMomentumHint momentumHint, ScrollConfig *config) {
+static void sendScroll(int64_t px, MFDirection scrollDirection, BOOL animated, MFAnimationCallbackPhase animationPhase, MFMomentumHint momentumHint, ScrollConfig *config, uint64_t generation, bool allowStaleTerminal) {
+
+    if (!allowStaleTerminal && !MFScrollGenerationIsCurrent(&_scrollGeneration, generation)) return;
     
     /// Get x and y deltas
     
@@ -950,25 +1019,14 @@ static void sendScroll(int64_t px, MFDirection scrollDirection, BOOL animated, M
     
     /// Send event
     
-    sendOutputEvents(dx, dy, outputType, animationPhase, momentumHint, config);
+    sendOutputEvents(dx, dy, outputType, animationPhase, momentumHint, config, generation, allowStaleTerminal);
 }
-
-/// Define output types
-
-typedef enum {
-    kMFScrollOutputTypeGestureScroll,
-    kMFScrollOutputTypeContinuousScroll,
-    kMFScrollOutputTypeLineScroll,
-    kMFScrollOutputTypeFourFingerPinch,
-    kMFScrollOutputTypeThreeFingerSwipeHorizontal,
-    kMFScrollOutputTypeZoom,
-    kMFScrollOutputTypeRotation,
-    kMFScrollOutputTypeCommandTab,
-} MFScrollOutputType;
 
 /// Output
 
-static void sendOutputEvents(int64_t dx, int64_t dy, MFScrollOutputType outputType, MFAnimationCallbackPhase animatorPhase, MFMomentumHint momentumHint, ScrollConfig *config) {
+static void sendOutputEvents(int64_t dx, int64_t dy, MFScrollOutputType outputType, MFAnimationCallbackPhase animatorPhase, MFMomentumHint momentumHint, ScrollConfig *config, uint64_t generation, bool allowStaleTerminal) {
+
+    if (!allowStaleTerminal && !MFScrollGenerationIsCurrent(&_scrollGeneration, generation)) return;
     
     /// Init eventPhase
     IOHIDEventPhaseBits eventPhase = kIOHIDEventPhaseUndefined;
@@ -1026,14 +1084,11 @@ static void sendOutputEvents(int64_t dx, int64_t dy, MFScrollOutputType outputTy
             /// Validate
             assert(momentumHint != kMFMomentumHintNone);
             
-            /// Store lastMomentumHint
-            static MFMomentumHint lastMomentumHint = kMFMomentumHintNone;
-            
             /// Get eventPhase and momentumPhase
             
             if (momentumHint == kMFMomentumHintGesture) { /// momentumHint is gesture
                 
-                if (lastMomentumHint == kMFMomentumHintMomentum) {
+                if (_lastMomentumHint == kMFMomentumHintMomentum) {
                     
                     /// Send momentum end event
                     [GestureScrollSimulator postMomentumScrollDirectlyWithDeltaX:0 deltaY:0 momentumPhase:kCGMomentumScrollPhaseEnd invertedFromDevice:_scrollConfig.invertedFromDevice];
@@ -1067,7 +1122,7 @@ static void sendOutputEvents(int64_t dx, int64_t dy, MFScrollOutputType outputTy
                 
                 CGMomentumScrollPhase momentumPhase = kCGMomentumScrollPhaseNone;
                 
-                if (lastMomentumHint == kMFMomentumHintGesture) {
+                if (_lastMomentumHint == kMFMomentumHintGesture) {
                     /// Momentum begins
                     
                     /// Send gesture end event
@@ -1079,7 +1134,7 @@ static void sendOutputEvents(int64_t dx, int64_t dy, MFScrollOutputType outputTy
                     /// Debug
                     DDLogDebug("Scroll.m: \nHybrid event - gesture: (0, 0, %d) HHH", kIOHIDEventPhaseEnded);
                     
-                } else if (lastMomentumHint == kMFMomentumHintMomentum) {
+                } else if (_lastMomentumHint == kMFMomentumHintMomentum) {
                     /// Momentum continues
                     
                     /// Get momentum phase
@@ -1111,10 +1166,10 @@ static void sendOutputEvents(int64_t dx, int64_t dy, MFScrollOutputType outputTy
             }
             
             /// Update lastMomentumHint
-            lastMomentumHint = momentumHint;
+            _lastMomentumHint = momentumHint;
             if (animatorPhase == kMFAnimationCallbackPhaseEnd || animatorPhase == kMFAnimationCallbackPhaseCanceled) {
                 DDLogDebug("Scroll.m: HNGG reset lastMomentumHint");
-                lastMomentumHint = kMFMomentumHintNone;
+                _lastMomentumHint = kMFMomentumHintNone;
             }
         }
         
@@ -1132,13 +1187,11 @@ static void sendOutputEvents(int64_t dx, int64_t dy, MFScrollOutputType outputTy
         
         /// Setup subpixelator
         
-        static VectorSubPixelator *linePixelator = nil;
-        
-        if (linePixelator == nil) {
-            linePixelator = [VectorSubPixelator biasedPixelator];
+        if (_continuousScrollLinePixelator == nil) {
+            _continuousScrollLinePixelator = [VectorSubPixelator biasedPixelator];
         }
         if (animatorPhase == kMFAnimationCallbackPhaseStart) {
-            [linePixelator reset];
+            [_continuousScrollLinePixelator reset];
         }
         
         /// Get alt deltas
@@ -1147,7 +1200,7 @@ static void sendOutputEvents(int64_t dx, int64_t dy, MFScrollOutputType outputTy
         double dyLine = ((double)dy)/10.0;
         double dxLine = ((double)dx)/10.0;
         
-        Vector pixelatedLines = [linePixelator intVectorWithDoubleVector:_P(dxLine, dyLine)];
+        Vector pixelatedLines = [_continuousScrollLinePixelator intVectorWithDoubleVector:_P(dxLine, dyLine)];
         
         /// Set deltas
         
@@ -1317,7 +1370,6 @@ static void sendOutputEvents(int64_t dx, int64_t dy, MFScrollOutputType outputTy
         
         /// Get state
         
-        static bool appSwitcherWasOpenedByCurrentConsecutiveTicks = false; /// Use this to make first swipe only create one selection change
         bool isFirstConsecutive = _lastScrollAnalysisResult.consecutiveScrollTickCounter == 0; /// When commandTab is active, we only get one call of this function per Tick (animator is disabled), that's why we can do this
         
         /// Open app switcher
@@ -1327,15 +1379,15 @@ static void sendOutputEvents(int64_t dx, int64_t dy, MFScrollOutputType outputTy
             sendKeyEvent(48, kCGEventFlagMaskCommand, true);
             sendKeyEvent(48, kCGEventFlagMaskCommand, false);
             _appSwitcherIsOpen = YES;
-            appSwitcherWasOpenedByCurrentConsecutiveTicks = true;
+            _appSwitcherWasOpenedByCurrentConsecutiveTicks = true;
         } else {
             if (isFirstConsecutive)
-                appSwitcherWasOpenedByCurrentConsecutiveTicks = false;
+                _appSwitcherWasOpenedByCurrentConsecutiveTicks = false;
         }
         
         /// Select apps
         
-        if (!appSwitcherWasOpenedByCurrentConsecutiveTicks) {
+        if (!_appSwitcherWasOpenedByCurrentConsecutiveTicks) {
             
             if (d > 0) {
                 sendKeyEvent(48, kCGEventFlagMaskCommand, true);
@@ -1353,8 +1405,6 @@ static void sendOutputEvents(int64_t dx, int64_t dy, MFScrollOutputType outputTy
 }
 
 /// Output - Helper funcs
-
-static BOOL _appSwitcherIsOpen = NO;
 
 + (void)appSwitcherModificationHasBeenDeactivated {
     

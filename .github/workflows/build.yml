@@ -103,6 +103,17 @@ jobs:
             -o "$RUNNER_TEMP/hid-event-attachment-tests"
           "$RUNNER_TEMP/hid-event-attachment-tests"
 
+          xcrun clang \
+            -std=gnu11 \
+            -fobjc-arc \
+            -framework Foundation \
+            -Werror \
+            -I Helper/Core/Scroll \
+            Helper/Core/Scroll/MFScrollGeneration.m \
+            Tests/MFScrollGenerationTests.m \
+            -o "$RUNNER_TEMP/scroll-generation-tests"
+          "$RUNNER_TEMP/scroll-generation-tests"
+
       - name: Prepare disposable build source
         run: ditto "$GITHUB_WORKSPACE" "$RUNNER_TEMP/source"
 

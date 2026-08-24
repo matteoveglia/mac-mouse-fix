@@ -326,6 +326,12 @@ import QuartzCore
     @objc func cancel() {
         cancel(forAutoMomentumScroll: false)
     }
+
+    /// Wait until animator work enqueued before this call has finished. Callers
+    /// must not invoke this from the display-link queue itself.
+    @objc func synchronizePendingOperations() {
+        displayLink.dispatchQueue.sync(flags: defaultDFs) {}
+    }
     
     @objc(cancel_forAutoMomentumScroll:) func cancel(forAutoMomentumScroll: Bool) {
         
@@ -683,4 +689,3 @@ import QuartzCore
     /// Helper functions
         
 }
-

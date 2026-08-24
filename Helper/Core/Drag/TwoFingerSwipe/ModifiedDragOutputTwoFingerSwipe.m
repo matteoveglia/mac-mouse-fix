@@ -69,7 +69,7 @@ static dispatch_group_t _momentumScrollWaitGroup;
     ///     - Initially, here, we just called [GestureScrollSimulator stopMomentumScroll], then later we replaced it with [Scroll resetState], which stops both the momentumScroll animator and the scrollwheel animator.
     ///     - On the trackpad driver, scrolling seems to stop whenever any clicks or gestures come in. Maybe we should do a similar type of top-down management of when scrolling is stopped, instead of doing it here. Feels sorta hacky to do it here.
 
-    [Scroll resetState];
+    [Scroll resetStateSync];
 }
 
 + (void)handleBecameInUse {

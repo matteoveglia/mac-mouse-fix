@@ -296,6 +296,10 @@ static void handleDeviceRemoval(void *context, IOReturn result, void *sender, IO
         /// fall back to a device that is still attached. `attachedDevice`
         /// remains alive through this callback's strong local reference.
         [HelperState.shared clearActiveDeviceIfRemoved:attachedDevice];
+
+        /// A queued scroll event can still belong to the removed device. Drop
+        /// that work and clear momentum before device selection is recomputed.
+        [Scroll resetStateSync];
         
         /// Reset cache
         

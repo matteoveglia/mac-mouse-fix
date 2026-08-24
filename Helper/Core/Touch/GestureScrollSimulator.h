@@ -29,6 +29,7 @@ NS_ASSUME_NONNULL_BEGIN
 + (void)afterStartingMomentumScroll:(void (^ _Nullable)(void))callback;
 + (void)stopMomentumScroll;
 + (void)suspendMomentumScroll;
++ (void)resetStateSync;
 
 @end
 

@@ -24,6 +24,7 @@ NS_ASSUME_NONNULL_BEGIN
 + (void)shutdown;
 
 + (void)resetState;
++ (void)resetStateSync;
 //+ (void)suspend;
 
 + (void)appSwitcherModificationHasBeenDeactivated;

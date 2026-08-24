@@ -87,6 +87,7 @@ static CFTimeInterval _consecutiveSwipeSequenceStartTime;
     /// The following are probably not necessary to reset, because the above resets will indirectly cause them to be reset on the next tick
     _consecutiveScrollTickCounter = 0;
     _consecutiveScrollSwipeCounter = 0;
+    _consecutiveScrollSwipeCounter_ForFreeScrollWheel = 0;
     
     _ticksInCurrentConsecutiveSwipeSequence = 0;
     _consecutiveSwipeSequenceStartTime = -1;

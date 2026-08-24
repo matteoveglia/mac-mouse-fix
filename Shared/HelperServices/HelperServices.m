@@ -438,17 +438,6 @@ static BOOL helperIsActive_PList(void) {
         
         SMAppService *service = [SMAppService agentServiceWithPlistName:@"sm_launchd.plist"];
 
-        /// Disabling must be idempotent. System Settings can already have
-        /// disabled the service while a previously launched helper is still
-        /// winding down. In that case, `unregisterAndReturnError:` reports an
-        /// error even though the requested registration state has been reached.
-        /// Return success so the caller can reflect the off state and terminate
-        /// any remaining helper process below.
-        if (!enable && service.status != SMAppServiceStatusEnabled) {
-            NSLog(@"Helper service is already disabled (status: %ld).", (long)service.status);
-            return nil;
-        }
-
         if (enable) {
             BOOL success = [service registerAndReturnError:&error];
             if (!success){
@@ -459,7 +448,22 @@ static BOOL helperIsActive_PList(void) {
         } else {
             BOOL success = [service unregisterAndReturnError:&error];
             if (!success){
-                NSLog(@"Failed to UNregister Helper with error: %@", error);
+                /// Disabling must be idempotent. System Settings can already
+                /// have disabled the service while a previously launched
+                /// helper is still winding down. Still call unregister first:
+                /// even when SMAppService reports a non-enabled status, this
+                /// call can clear a stale launchd/BackgroundTaskManagement
+                /// registration left by an older copy of the app.
+                ///
+                /// If the service is still not enabled after the attempt, the
+                /// requested state has been reached, so let the caller update
+                /// the UI and terminate any remaining helper process.
+                if (service.status != SMAppServiceStatusEnabled) {
+                    NSLog(@"Helper service was already disabled after unregister attempt (status: %ld, error: %@).", (long)service.status, error);
+                    error = nil;
+                } else {
+                    NSLog(@"Failed to UNregister Helper with error: %@", error);
+                }
             } else {
                 NSLog(@"Unregistered Helper.");
             }

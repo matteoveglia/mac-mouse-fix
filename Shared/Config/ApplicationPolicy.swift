@@ -467,6 +467,15 @@ public final class ApplicationPolicySnapshot: NSObject {
 
     @objc public var allowsAllByDefault: Bool { defaultEffect == .allow }
 
+    /// Project a canonical policy into the explicit Advanced scope. Legacy
+    /// bundle-ID rules and their default effect are intentionally excluded so
+    /// Advanced mode cannot accidentally inherit list-based behavior.
+    @objc(advancedScopeSnapshot)
+    public func advancedScopeSnapshot() -> ApplicationPolicySnapshot? {
+        ApplicationPolicySnapshot(defaultEffect: .allow,
+                                  rules: rules.filter({ $0.matchKind != .bundleIdentifier }))
+    }
+
     /// Convert the old `all`, `include`, and `exclude` representation to a
     /// validated snapshot.  Legacy entries are bundle identifiers; paths and
     /// process names must use explicit rules so they cannot be accidentally

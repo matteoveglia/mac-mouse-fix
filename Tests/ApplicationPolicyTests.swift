@@ -38,6 +38,31 @@ public final class ApplicationPolicyTests: NSObject {
             return false
         }
 
+        // Advanced mode keeps only its exact selectors and defaults unmatched
+        // applications to allow; legacy bundle-ID rules are not part of this
+        // mode's snapshot.
+        guard let advancedWrapperRule = ApplicationPolicyRule(wrapperBundleIdentifier: "com.example.runtime", effect: .deny),
+              let advancedProcessRule = ApplicationPolicyRule(processName: "java", effect: .deny),
+              let advancedOnly = ApplicationPolicySnapshot(defaultEffect: .allow,
+                                                            rules: [advancedWrapperRule, advancedProcessRule]),
+              advancedOnly.rules.allSatisfy({ $0.matchKind != .bundleIdentifier }),
+              advancedOnly.decision(for: identity) == .deny,
+              advancedOnly.decision(for: other) == .allow else {
+            return false
+        }
+
+        // Projecting a mixed canonical policy into Advanced must discard the
+        // legacy bundle rule and its deny-by-default behavior.
+        guard let mixedPolicy = ApplicationPolicySnapshot(defaultEffect: .deny,
+                                                           rules: [bundleRule, advancedWrapperRule]),
+              let projectedAdvanced = mixedPolicy.advancedScopeSnapshot(),
+              projectedAdvanced.defaultEffect == .allow,
+              projectedAdvanced.rules.allSatisfy({ $0.matchKind != .bundleIdentifier }),
+              projectedAdvanced.decision(for: identity) == .deny,
+              projectedAdvanced.decision(for: other) == .allow else {
+            return false
+        }
+
         // Finder is a useful concrete example for the UI: an executable rule
         // needs the absolute binary path, while a bare process name is only a
         // syntactically valid fallback selector.

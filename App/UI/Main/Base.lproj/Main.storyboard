@@ -1415,6 +1415,8 @@ your mouse. (**Logitech M720 Triathlon**)&gt;</string>
                                                                             <menuItem title="All Apps" state="on" identifier="all" id="ScW-Trackpad-Scope-All"/>
                                                                             <menuItem title="Only" identifier="include" id="ScW-Trackpad-Scope-Include"/>
                                                                             <menuItem title="All Apps Except" identifier="exclude" id="ScW-Trackpad-Scope-Exclude"/>
+                                                                            <menuItem isSeparatorItem="YES" id="ScW-Trackpad-Scope-Advanced-Separator"/>
+                                                                            <menuItem title="Advanced…" identifier="advanced" id="ScW-Trackpad-Scope-Advanced"/>
                                                                         </items>
                                                                     </menu>
                                                                 </popUpButtonCell>

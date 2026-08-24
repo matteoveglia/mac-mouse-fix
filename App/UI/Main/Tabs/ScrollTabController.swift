@@ -183,8 +183,9 @@ class ScrollTabController: NSViewController {
         view.removeConstraints(view.constraints.filter({ $0.firstAttribute == .width && $0.secondItem == nil }))
     }
 
-    /// Rebuild the scope controls into one compact row. The included/excluded list
-    /// lives in a dedicated sheet so it has room to be read and managed properly.
+    /// Rebuild the scope controls into a compact scope row. The included/excluded
+    /// list lives in a dedicated sheet so it has room to be read and managed
+    /// properly; advanced rules are opened from the Apply To menu.
     /// The original controls are still loaded from the storyboard so their actions,
     /// accessibility identifiers, and existing localization metadata remain intact.
     private func configureTrackpadScopeUI() {
@@ -224,29 +225,24 @@ class ScrollTabController: NSViewController {
         trackpadAppsButton.target = self
         trackpadAppsButton.action = #selector(editTrackpadApps(_:))
 
-        let advancedButton = NSButton(title: "Advanced…", target: self, action: #selector(editAdvancedTrackpadPolicy(_:)))
-        advancedButton.bezelStyle = .rounded
-        advancedButton.translatesAutoresizingMaskIntoConstraints = false
-        advancedButton.widthAnchor.constraint(equalToConstant: 132).isActive = true
+        if let advancedMenuItem = trackpadScopePicker.menu?.item(withIdentifier: NSUserInterfaceItemIdentifier("advanced")) {
+            advancedMenuItem.target = self
+            advancedMenuItem.action = #selector(editAdvancedTrackpadPolicyFromScopeMenu(_:))
+        }
+
         let scopeSelectionRow = NSStackView(views: [applyToLabel, trackpadScopePicker])
         scopeSelectionRow.orientation = .horizontal
         scopeSelectionRow.alignment = .centerY
         scopeSelectionRow.spacing = 10
         scopeSelectionRow.distribution = .fill
 
-        // This row owns the collapsible Edit Apps button. It must use the
+        // This stack owns the collapsible Edit Apps button. It must use the
         // custom stack type because Reactive.isCollapsed expects the target
         // view to be a direct child of a CollapsingStackView.
-        let buttonRow = CollapsingStackView(views: [trackpadAppsButton, advancedButton])
-        buttonRow.orientation = .horizontal
-        buttonRow.alignment = .centerY
-        buttonRow.spacing = 8
-        buttonRow.distribution = .fill
-
-        let compactScopeRow = CollapsingStackView(views: [scopeSelectionRow, buttonRow])
+        let compactScopeRow = CollapsingStackView(views: [scopeSelectionRow, trackpadAppsButton])
         compactScopeRow.orientation = .vertical
         compactScopeRow.alignment = .trailing
-        compactScopeRow.spacing = 8
+        compactScopeRow.spacing = 6
         compactScopeRow.distribution = .fill
         trackpadScopeRow = compactScopeRow
 
@@ -259,7 +255,7 @@ class ScrollTabController: NSViewController {
         scopeRowHeightConstraint.isActive = true
         trackpadScopeRowHeightConstraint = scopeRowHeightConstraint
         scopeSelectionRow.widthAnchor.constraint(equalTo: compactScopeRow.widthAnchor).isActive = true
-        buttonRow.setContentHuggingPriority(.required, for: .horizontal)
+        trackpadAppsButton.setContentHuggingPriority(.required, for: .horizontal)
     }
 
     private func configuredTrackpadApps() -> [String] {
@@ -313,9 +309,7 @@ class ScrollTabController: NSViewController {
         let isRestricted = scope != "all"
 
         trackpadAppsButton.isEnabled = isRestricted
-        // The Advanced button remains available for the All Apps scope, so
-        // the action row is always present even when Edit Apps is collapsed.
-        let targetHeight: CGFloat = 59
+        let targetHeight: CGFloat = scope == "all" ? 24 : 59
         if let constraint = trackpadScopeRowHeightConstraint, constraint.constant != targetHeight {
             if trackpadScopeRow?.window != nil {
                 NSAnimationContext.runAnimationGroup { context in
@@ -549,6 +543,13 @@ class ScrollTabController: NSViewController {
             self?.trackpadPolicyEditorWindow = nil
             self?.trackpadPolicyTableView = nil
         }
+    }
+
+    @objc private func editAdvancedTrackpadPolicyFromScopeMenu(_ sender: NSMenuItem) {
+        let storedScope = trackpadScope.get() ?? "all"
+        let scopeToRestore = ["all", "include", "exclude"].contains(storedScope) ? storedScope : "all"
+        trackpadScopePicker.selectItem(withIdentifier: NSUserInterfaceItemIdentifier(scopeToRestore))
+        editAdvancedTrackpadPolicy(trackpadAppsButton)
     }
 
     private var advancedPolicyKinds: [ApplicationPolicyMatchKind] {
@@ -944,8 +945,9 @@ class ScrollTabController: NSViewController {
         horizontalSpeedPicker.reactive.selectedIdentifier <~ horizontalSpeed.producer.map({ NSUserInterfaceItemIdentifier($0) })
 
         /// Trackpad Simulation app scope
-        trackpadScope.bindingTarget <~ trackpadScopePicker.reactive.selectedIdentifiers.map({ identifier in
-            identifier!.rawValue
+        trackpadScope.bindingTarget <~ trackpadScopePicker.reactive.selectedIdentifiers.compactMap({ identifier in
+            guard let rawValue = identifier?.rawValue, rawValue != "advanced" else { return nil }
+            return rawValue
         })
         trackpadScopePicker.reactive.selectedIdentifier <~ trackpadScope.producer.map({ NSUserInterfaceItemIdentifier($0) })
         trackpadAppsButton.reactive.isCollapsed <~ trackpadScope.producer.map({ $0 == "all" })

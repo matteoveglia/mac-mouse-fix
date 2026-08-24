@@ -38,6 +38,15 @@ public final class ApplicationPolicyTests: NSObject {
             return false
         }
 
+        // Finder is a useful concrete example for the UI: an executable rule
+        // needs the absolute binary path, while a bare process name is only a
+        // syntactically valid fallback selector.
+        guard ApplicationPolicyRule(executablePath: "/System/Library/CoreServices/Finder.app/Contents/MacOS/Finder", effect: .deny) != nil,
+              ApplicationPolicyRule(executablePath: "Finder.app", effect: .deny) == nil,
+              ApplicationPolicyRule(processName: "Finder", effect: .deny) != nil else {
+            return false
+        }
+
         return true
     }
 

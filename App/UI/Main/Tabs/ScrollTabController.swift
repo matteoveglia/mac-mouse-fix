@@ -58,6 +58,51 @@ private final class TrackpadAppsTableDataSource: NSObject, NSTableViewDataSource
     }
 }
 
+private final class TrackpadPolicyRulesTableDataSource: NSObject, NSTableViewDataSource, NSTableViewDelegate {
+    var rules: [ApplicationPolicyRule] = []
+
+    static func title(for kind: ApplicationPolicyMatchKind) -> String {
+        switch kind {
+        case .bundleIdentifier: return "Bundle Identifier"
+        case .executablePath: return "Executable Path"
+        case .wrapperBundleIdentifier: return "Wrapper Bundle ID"
+        case .wrapperPath: return "Wrapper Path"
+        case .processName: return "Process Name"
+        }
+    }
+
+    static func title(for effect: ApplicationPolicyEffect) -> String {
+        effect == .allow ? "Allow" : "Deny"
+    }
+
+    func numberOfRows(in tableView: NSTableView) -> Int {
+        rules.count
+    }
+
+    func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
+        let rule = rules[row]
+        let cellID = NSUserInterfaceItemIdentifier("TrackpadPolicyRuleCell")
+        let cell = tableView.makeView(withIdentifier: cellID, owner: nil) as? NSTableCellView ?? {
+            let newCell = NSTableCellView()
+            newCell.identifier = cellID
+            let text = NSTextField(labelWithString: "")
+            text.translatesAutoresizingMaskIntoConstraints = false
+            text.lineBreakMode = .byTruncatingMiddle
+            newCell.addSubview(text)
+            newCell.textField = text
+            NSLayoutConstraint.activate([
+                text.leadingAnchor.constraint(equalTo: newCell.leadingAnchor, constant: 8),
+                text.trailingAnchor.constraint(equalTo: newCell.trailingAnchor, constant: -8),
+                text.centerYAnchor.constraint(equalTo: newCell.centerYAnchor),
+            ])
+            return newCell
+        }()
+
+        cell.textField?.stringValue = "\(Self.title(for: rule.matchKind)) — \(Self.title(for: rule.effect)): \(rule.value)"
+        return cell
+    }
+}
+
 @available(macOS 11.0, *)
 class ScrollTabController: NSViewController {
     
@@ -123,6 +168,16 @@ class ScrollTabController: NSViewController {
     private var trackpadAppsEditorWindow: NSWindow?
     private var trackpadAppsTableView: NSTableView?
     private let trackpadAppsTableDataSource = TrackpadAppsTableDataSource()
+    private var trackpadPolicyEditorWindow: NSWindow?
+    private var trackpadPolicyTableView: NSTableView?
+    private let trackpadPolicyRulesDataSource = TrackpadPolicyRulesTableDataSource()
+    private var trackpadRuleEntryWindow: NSPanel?
+    private var trackpadRuleEntryKindPopup: NSPopUpButton?
+    private var trackpadRuleEntryEffectPopup: NSPopUpButton?
+    private var trackpadRuleEntryValueField: NSTextField?
+    private var trackpadRuleEntryChooseButton: NSButton?
+    private var trackpadRuleEntryHint: NSTextField?
+    private var trackpadRuleEntryError: NSTextField?
 
     private func removeWidthConstraints(from view: NSView) {
         view.removeConstraints(view.constraints.filter({ $0.firstAttribute == .width && $0.secondItem == nil }))
@@ -158,7 +213,7 @@ class ScrollTabController: NSViewController {
         appsRow.removeFromSuperview()
 
         applyToLabel.removeConstraints(applyToLabel.constraints.filter({ $0.firstAttribute == .width && $0.secondItem == nil }))
-        applyToLabel.widthAnchor.constraint(equalToConstant: 122).isActive = true
+        applyToLabel.widthAnchor.constraint(equalToConstant: 70).isActive = true
 
         removeWidthConstraints(from: trackpadScopePicker)
         trackpadScopePicker.widthAnchor.constraint(equalToConstant: 180).isActive = true
@@ -169,13 +224,26 @@ class ScrollTabController: NSViewController {
         trackpadAppsButton.target = self
         trackpadAppsButton.action = #selector(editTrackpadApps(_:))
 
+        let advancedButton = NSButton(title: "Advanced…", target: self, action: #selector(editAdvancedTrackpadPolicy(_:)))
+        advancedButton.bezelStyle = .rounded
+        advancedButton.translatesAutoresizingMaskIntoConstraints = false
+        advancedButton.widthAnchor.constraint(equalToConstant: 132).isActive = true
         let scopeSelectionRow = NSStackView(views: [applyToLabel, trackpadScopePicker])
         scopeSelectionRow.orientation = .horizontal
         scopeSelectionRow.alignment = .centerY
         scopeSelectionRow.spacing = 10
         scopeSelectionRow.distribution = .fill
 
-        let compactScopeRow = CollapsingStackView(views: [scopeSelectionRow, trackpadAppsButton])
+        // This row owns the collapsible Edit Apps button. It must use the
+        // custom stack type because Reactive.isCollapsed expects the target
+        // view to be a direct child of a CollapsingStackView.
+        let buttonRow = CollapsingStackView(views: [trackpadAppsButton, advancedButton])
+        buttonRow.orientation = .horizontal
+        buttonRow.alignment = .centerY
+        buttonRow.spacing = 8
+        buttonRow.distribution = .fill
+
+        let compactScopeRow = CollapsingStackView(views: [scopeSelectionRow, buttonRow])
         compactScopeRow.orientation = .vertical
         compactScopeRow.alignment = .trailing
         compactScopeRow.spacing = 8
@@ -191,10 +259,25 @@ class ScrollTabController: NSViewController {
         scopeRowHeightConstraint.isActive = true
         trackpadScopeRowHeightConstraint = scopeRowHeightConstraint
         scopeSelectionRow.widthAnchor.constraint(equalTo: compactScopeRow.widthAnchor).isActive = true
+        buttonRow.setContentHuggingPriority(.required, for: .horizontal)
     }
 
     private func configuredTrackpadApps() -> [String] {
         return (config("Scroll.trackpadSimulationApps") as? NSArray)?.compactMap({ $0 as? String }) ?? []
+    }
+
+    private func currentApplicationPolicySnapshot() -> ApplicationPolicySnapshot? {
+        if let dictionary = config("Scroll.applicationPolicy") as? NSDictionary,
+           let snapshot = ApplicationPolicySnapshot.snapshotFromDictionary(dictionary) {
+            return snapshot
+        }
+
+        let scope = trackpadScope.get() ?? "all"
+        return ApplicationPolicySnapshot.snapshotFromLegacyScope(scope, applications: NSArray(array: configuredTrackpadApps()))
+    }
+
+    private func currentAdvancedPolicyRules() -> [ApplicationPolicyRule] {
+        currentApplicationPolicySnapshot()?.rules.filter({ $0.matchKind != .bundleIdentifier }) ?? []
     }
 
     @discardableResult
@@ -230,7 +313,9 @@ class ScrollTabController: NSViewController {
         let isRestricted = scope != "all"
 
         trackpadAppsButton.isEnabled = isRestricted
-        let targetHeight: CGFloat = isRestricted ? 59 : 31
+        // The Advanced button remains available for the All Apps scope, so
+        // the action row is always present even when Edit Apps is collapsed.
+        let targetHeight: CGFloat = 59
         if let constraint = trackpadScopeRowHeightConstraint, constraint.constant != targetHeight {
             if trackpadScopeRow?.window != nil {
                 NSAnimationContext.runAnimationGroup { context in
@@ -251,6 +336,23 @@ class ScrollTabController: NSViewController {
         _ = updateApplicationPolicyInConfig()
         commitConfig()
         updateTrackpadAppsUI()
+    }
+
+    @discardableResult
+    private func saveAdvancedPolicyRules(_ rules: [ApplicationPolicyRule]) -> Bool {
+        guard let current = currentApplicationPolicySnapshot() else { return false }
+        let bundleRules = current.rules.filter({ $0.matchKind == .bundleIdentifier })
+        guard let merged = ApplicationPolicySnapshot(defaultEffect: current.defaultEffect,
+                                                     rules: bundleRules + rules) else {
+            return false
+        }
+        let encoded = merged.dictionaryRepresentation
+        if let current = config("Scroll.applicationPolicy") as? NSDictionary, current.isEqual(encoded) {
+            return false
+        }
+        setConfig("Scroll.applicationPolicy", encoded)
+        commitConfig()
+        return true
     }
 
     @IBAction func chooseTrackpadApps(_ sender: NSButton) {
@@ -372,6 +474,364 @@ class ScrollTabController: NSViewController {
 
     @objc private func closeTrackpadAppsEditor(_ sender: NSButton) {
         guard let editor = trackpadAppsEditorWindow, let parent = editor.sheetParent else { return }
+        parent.endSheet(editor)
+    }
+
+    @objc private func editAdvancedTrackpadPolicy(_ sender: NSButton) {
+        guard let parentWindow = view.window else { return }
+
+        let contentView = NSView(frame: NSRect(x: 0, y: 0, width: 620, height: 390))
+        let ruleCount = currentAdvancedPolicyRules().count
+        let ruleSummary = ruleCount == 0 ? "No advanced rules are configured yet." : "\(ruleCount) advanced rule\(ruleCount == 1 ? "" : "s") configured."
+        let instructionLabel = NSTextField(wrappingLabelWithString: "\(ruleSummary)\nThese exact selectors are checked after bundle-ID rules. Use Edit Apps… for ordinary app bundle IDs. Process-name rules are only used when macOS cannot provide a stable application identity.")
+        instructionLabel.translatesAutoresizingMaskIntoConstraints = false
+        instructionLabel.font = .systemFont(ofSize: 13)
+
+        let scrollView = NSScrollView()
+        scrollView.translatesAutoresizingMaskIntoConstraints = false
+        scrollView.hasVerticalScroller = true
+        scrollView.borderType = .bezelBorder
+
+        let tableView = NSTableView()
+        tableView.headerView = nil
+        tableView.rowHeight = 30
+        tableView.usesAlternatingRowBackgroundColors = true
+        let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("Rule"))
+        column.resizingMask = .autoresizingMask
+        tableView.addTableColumn(column)
+        tableView.dataSource = trackpadPolicyRulesDataSource
+        tableView.delegate = trackpadPolicyRulesDataSource
+        scrollView.documentView = tableView
+
+        let addButton = NSButton(title: "Add Rule…", target: self, action: #selector(addAdvancedTrackpadPolicyRule(_:)))
+        addButton.bezelStyle = .rounded
+        addButton.translatesAutoresizingMaskIntoConstraints = false
+        let removeButton = NSButton(title: "Remove", target: self, action: #selector(removeAdvancedTrackpadPolicyRule(_:)))
+        removeButton.bezelStyle = .rounded
+        removeButton.translatesAutoresizingMaskIntoConstraints = false
+        let doneButton = NSButton(title: "Done", target: self, action: #selector(closeAdvancedTrackpadPolicyEditor(_:)))
+        doneButton.bezelStyle = .rounded
+        doneButton.keyEquivalent = "\r"
+        doneButton.translatesAutoresizingMaskIntoConstraints = false
+
+        contentView.addSubview(instructionLabel)
+        contentView.addSubview(scrollView)
+        contentView.addSubview(addButton)
+        contentView.addSubview(removeButton)
+        contentView.addSubview(doneButton)
+        NSLayoutConstraint.activate([
+            instructionLabel.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 20),
+            instructionLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
+            instructionLabel.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -20),
+            scrollView.topAnchor.constraint(equalTo: instructionLabel.bottomAnchor, constant: 12),
+            scrollView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
+            scrollView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -20),
+            scrollView.bottomAnchor.constraint(equalTo: addButton.topAnchor, constant: -16),
+            addButton.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
+            addButton.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -20),
+            removeButton.leadingAnchor.constraint(equalTo: addButton.trailingAnchor, constant: 8),
+            removeButton.centerYAnchor.constraint(equalTo: addButton.centerYAnchor),
+            doneButton.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -20),
+            doneButton.centerYAnchor.constraint(equalTo: addButton.centerYAnchor),
+        ])
+
+        let editor = NSPanel(contentRect: contentView.bounds, styleMask: [.titled], backing: .buffered, defer: false)
+        editor.title = "Advanced Application Rules"
+        editor.contentView = contentView
+        editor.isReleasedWhenClosed = false
+        editor.standardWindowButton(.zoomButton)?.isHidden = true
+        editor.standardWindowButton(.miniaturizeButton)?.isHidden = true
+        trackpadPolicyEditorWindow = editor
+        trackpadPolicyTableView = tableView
+        trackpadPolicyRulesDataSource.rules = currentAdvancedPolicyRules()
+        tableView.reloadData()
+        parentWindow.beginSheet(editor) { [weak self] _ in
+            self?.trackpadPolicyEditorWindow = nil
+            self?.trackpadPolicyTableView = nil
+        }
+    }
+
+    private var advancedPolicyKinds: [ApplicationPolicyMatchKind] {
+        [.executablePath, .wrapperBundleIdentifier, .wrapperPath, .processName]
+    }
+
+    @objc private func addAdvancedTrackpadPolicyRule(_ sender: NSButton) {
+        guard let parentWindow = trackpadPolicyEditorWindow else { return }
+
+        let contentView = NSView(frame: NSRect(x: 0, y: 0, width: 620, height: 330))
+        let titleLabel = NSTextField(labelWithString: "Add an exact application rule")
+        titleLabel.translatesAutoresizingMaskIntoConstraints = false
+        titleLabel.font = .boldSystemFont(ofSize: 15)
+
+        let kindLabel = NSTextField(labelWithString: "Selector type")
+        let effectLabel = NSTextField(labelWithString: "Effect")
+        let valueLabel = NSTextField(labelWithString: "Value")
+        [kindLabel, effectLabel, valueLabel].forEach {
+            $0.translatesAutoresizingMaskIntoConstraints = false
+            $0.alignment = .right
+        }
+
+        let kindPopup = NSPopUpButton()
+        kindPopup.translatesAutoresizingMaskIntoConstraints = false
+        advancedPolicyKinds.forEach({ kindPopup.addItem(withTitle: TrackpadPolicyRulesTableDataSource.title(for: $0)) })
+
+        let effectPopup = NSPopUpButton()
+        effectPopup.translatesAutoresizingMaskIntoConstraints = false
+        effectPopup.addItems(withTitles: ["Allow", "Deny"])
+
+        let valueField = NSTextField()
+        valueField.translatesAutoresizingMaskIntoConstraints = false
+        valueField.placeholderString = "Choose an app or enter an exact value"
+
+        let chooseButton = NSButton(title: "Choose App…", target: self, action: #selector(chooseAdvancedTrackpadPolicyApp(_:)))
+        chooseButton.translatesAutoresizingMaskIntoConstraints = false
+        chooseButton.bezelStyle = .rounded
+
+        let hint = NSTextField(wrappingLabelWithString: "")
+        hint.translatesAutoresizingMaskIntoConstraints = false
+        hint.font = .systemFont(ofSize: 12)
+        hint.textColor = .secondaryLabelColor
+
+        let error = NSTextField(wrappingLabelWithString: "")
+        error.translatesAutoresizingMaskIntoConstraints = false
+        error.font = .systemFont(ofSize: 12)
+        error.textColor = .systemRed
+        error.isHidden = true
+
+        let cancelButton = NSButton(title: "Cancel", target: self, action: #selector(cancelAdvancedTrackpadPolicyRule(_:)))
+        cancelButton.translatesAutoresizingMaskIntoConstraints = false
+        cancelButton.bezelStyle = .rounded
+        cancelButton.keyEquivalent = "\u{1b}"
+
+        let addButton = NSButton(title: "Add Rule", target: self, action: #selector(confirmAdvancedTrackpadPolicyRule(_:)))
+        addButton.translatesAutoresizingMaskIntoConstraints = false
+        addButton.bezelStyle = .rounded
+        addButton.keyEquivalent = "\r"
+
+        let valueRow = NSStackView(views: [valueField, chooseButton])
+        valueRow.translatesAutoresizingMaskIntoConstraints = false
+        valueRow.orientation = .horizontal
+        valueRow.alignment = .centerY
+        valueRow.spacing = 8
+        valueRow.distribution = .fill
+        valueRow.detachesHiddenViews = true
+
+        [titleLabel, kindLabel, kindPopup, effectLabel, effectPopup, valueLabel, valueRow,
+         hint, error, cancelButton, addButton].forEach({ contentView.addSubview($0) })
+        NSLayoutConstraint.activate([
+            titleLabel.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 24),
+            titleLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 28),
+            titleLabel.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -28),
+
+            kindLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 24),
+            kindLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 28),
+            kindLabel.widthAnchor.constraint(equalToConstant: 105),
+            kindPopup.leadingAnchor.constraint(equalTo: kindLabel.trailingAnchor, constant: 14),
+            kindPopup.centerYAnchor.constraint(equalTo: kindLabel.centerYAnchor),
+            kindPopup.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -28),
+
+            effectLabel.topAnchor.constraint(equalTo: kindPopup.bottomAnchor, constant: 16),
+            effectLabel.leadingAnchor.constraint(equalTo: kindLabel.leadingAnchor),
+            effectLabel.widthAnchor.constraint(equalTo: kindLabel.widthAnchor),
+            effectPopup.leadingAnchor.constraint(equalTo: kindPopup.leadingAnchor),
+            effectPopup.centerYAnchor.constraint(equalTo: effectLabel.centerYAnchor),
+            effectPopup.trailingAnchor.constraint(equalTo: kindPopup.trailingAnchor),
+
+            valueLabel.topAnchor.constraint(equalTo: effectPopup.bottomAnchor, constant: 16),
+            valueLabel.leadingAnchor.constraint(equalTo: kindLabel.leadingAnchor),
+            valueLabel.widthAnchor.constraint(equalTo: kindLabel.widthAnchor),
+            valueRow.leadingAnchor.constraint(equalTo: kindPopup.leadingAnchor),
+            valueRow.centerYAnchor.constraint(equalTo: valueLabel.centerYAnchor),
+            valueRow.trailingAnchor.constraint(equalTo: kindPopup.trailingAnchor),
+            valueRow.heightAnchor.constraint(equalToConstant: 26),
+            chooseButton.widthAnchor.constraint(equalToConstant: 112),
+
+            hint.topAnchor.constraint(equalTo: valueRow.bottomAnchor, constant: 10),
+            hint.leadingAnchor.constraint(equalTo: kindPopup.leadingAnchor),
+            hint.trailingAnchor.constraint(equalTo: kindPopup.trailingAnchor),
+            error.topAnchor.constraint(equalTo: hint.bottomAnchor, constant: 5),
+            error.leadingAnchor.constraint(equalTo: hint.leadingAnchor),
+            error.trailingAnchor.constraint(equalTo: hint.trailingAnchor),
+
+            cancelButton.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -22),
+            cancelButton.trailingAnchor.constraint(equalTo: addButton.leadingAnchor, constant: -8),
+            cancelButton.widthAnchor.constraint(equalToConstant: 100),
+            addButton.bottomAnchor.constraint(equalTo: cancelButton.bottomAnchor),
+            addButton.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -28),
+            addButton.widthAnchor.constraint(equalToConstant: 100),
+        ])
+
+        let editor = NSPanel(contentRect: contentView.bounds, styleMask: [.titled], backing: .buffered, defer: false)
+        editor.title = "Add Application Rule"
+        editor.contentView = contentView
+        editor.isReleasedWhenClosed = false
+        editor.initialFirstResponder = valueField
+
+        trackpadRuleEntryWindow = editor
+        trackpadRuleEntryKindPopup = kindPopup
+        trackpadRuleEntryEffectPopup = effectPopup
+        trackpadRuleEntryValueField = valueField
+        trackpadRuleEntryChooseButton = chooseButton
+        trackpadRuleEntryHint = hint
+        trackpadRuleEntryError = error
+        kindPopup.target = self
+        kindPopup.action = #selector(updateAdvancedTrackpadPolicyRuleForm(_:))
+        updateAdvancedTrackpadPolicyRuleForm(kindPopup)
+
+        parentWindow.beginSheet(editor) { [weak self] _ in
+            self?.clearAdvancedTrackpadPolicyRuleForm()
+        }
+    }
+
+    private func clearAdvancedTrackpadPolicyRuleForm() {
+        trackpadRuleEntryWindow = nil
+        trackpadRuleEntryKindPopup = nil
+        trackpadRuleEntryEffectPopup = nil
+        trackpadRuleEntryValueField = nil
+        trackpadRuleEntryChooseButton = nil
+        trackpadRuleEntryHint = nil
+        trackpadRuleEntryError = nil
+    }
+
+    private func selectedAdvancedTrackpadPolicyKind() -> ApplicationPolicyMatchKind? {
+        guard let popup = trackpadRuleEntryKindPopup,
+              advancedPolicyKinds.indices.contains(popup.indexOfSelectedItem) else { return nil }
+        return advancedPolicyKinds[popup.indexOfSelectedItem]
+    }
+
+    @objc private func updateAdvancedTrackpadPolicyRuleForm(_ sender: NSPopUpButton) {
+        guard let kind = selectedAdvancedTrackpadPolicyKind(),
+              let valueField = trackpadRuleEntryValueField,
+              let chooseButton = trackpadRuleEntryChooseButton,
+              let hint = trackpadRuleEntryHint else { return }
+
+        chooseButton.isHidden = kind == .processName
+        switch kind {
+        case .executablePath:
+            valueField.placeholderString = "/System/Library/CoreServices/Finder.app/Contents/MacOS/Finder"
+            hint.stringValue = "Use Choose App… to fill the exact executable path. Finder.app is a bundle, not an executable path."
+        case .wrapperBundleIdentifier:
+            valueField.placeholderString = "com.example.wrapper"
+            hint.stringValue = "Choose an app to fill its exact bundle identifier."
+        case .wrapperPath:
+            valueField.placeholderString = "/Applications/Wrapper.app"
+            hint.stringValue = "Use Choose App… to fill the exact wrapper application path."
+        case .processName:
+            valueField.placeholderString = "java"
+            hint.stringValue = "Enter a process name such as java. This fallback is used only when macOS provides no stable app identity."
+        case .bundleIdentifier:
+            valueField.placeholderString = "com.example.app"
+            hint.stringValue = "Bundle-ID rules are normally managed with Edit Apps…."
+        }
+    }
+
+    @objc private func chooseAdvancedTrackpadPolicyApp(_ sender: NSButton) {
+        guard let kind = selectedAdvancedTrackpadPolicyKind(), kind != .processName else { return }
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.allowsOtherFileTypes = false
+        if #available(macOS 12.0, *) {
+            panel.allowedContentTypes = [.applicationBundle]
+        } else {
+            panel.allowedFileTypes = ["app"]
+        }
+        panel.prompt = "Choose"
+        panel.directoryURL = URL(fileURLWithPath: "/Applications")
+
+        let applySelection: (NSApplication.ModalResponse) -> Void = { [weak self, weak panel] response in
+            guard response == .OK,
+                  let self,
+                  let panel,
+                  let url = panel.url,
+                  let bundle = Bundle(url: url),
+                  let kind = self.selectedAdvancedTrackpadPolicyKind(),
+                  let valueField = self.trackpadRuleEntryValueField else { return }
+
+            let value: String?
+            switch kind {
+            case .executablePath:
+                value = bundle.executableURL?.path
+            case .wrapperBundleIdentifier:
+                value = bundle.bundleIdentifier
+            case .wrapperPath:
+                value = url.path
+            case .processName:
+                value = nil
+            case .bundleIdentifier:
+                value = bundle.bundleIdentifier
+            }
+            if let value {
+                valueField.stringValue = value
+                self.trackpadRuleEntryError?.isHidden = true
+            } else {
+                self.showAdvancedTrackpadPolicyRuleError("The selected app does not expose the identity needed for this selector.")
+            }
+        }
+
+        if let window = trackpadRuleEntryWindow {
+            panel.beginSheetModal(for: window, completionHandler: applySelection)
+        } else if panel.runModal() == .OK {
+            applySelection(.OK)
+        }
+    }
+
+    private func showAdvancedTrackpadPolicyRuleError(_ message: String) {
+        trackpadRuleEntryError?.stringValue = message
+        trackpadRuleEntryError?.isHidden = false
+    }
+
+    @objc private func confirmAdvancedTrackpadPolicyRule(_ sender: NSButton) {
+        guard let kind = selectedAdvancedTrackpadPolicyKind(),
+              let effectPopup = trackpadRuleEntryEffectPopup,
+              let valueField = trackpadRuleEntryValueField else { return }
+        let effect: ApplicationPolicyEffect = effectPopup.indexOfSelectedItem == 0 ? .allow : .deny
+        guard let rule = ApplicationPolicyRule(matchKind: kind, value: valueField.stringValue, effect: effect) else {
+            showAdvancedTrackpadPolicyRuleError("Enter a valid exact value. Paths must be absolute; wildcards are not supported.")
+            return
+        }
+
+        var rules = trackpadPolicyRulesDataSource.rules
+        guard !rules.contains(where: { $0.matchKind == rule.matchKind && $0.value == rule.value }) else {
+            showAdvancedTrackpadPolicyRuleError("That selector already exists. Remove the existing rule before adding it again.")
+            return
+        }
+        rules.append(rule)
+        guard saveAdvancedPolicyRules(rules) else {
+            showAdvancedTrackpadPolicyRuleError("The policy could not be saved. It may already contain the maximum number of rules.")
+            return
+        }
+        trackpadPolicyRulesDataSource.rules = currentAdvancedPolicyRules()
+        trackpadPolicyTableView?.reloadData()
+        cancelAdvancedTrackpadPolicyRule(sender)
+    }
+
+    @objc private func cancelAdvancedTrackpadPolicyRule(_ sender: NSButton) {
+        guard let editor = trackpadRuleEntryWindow else { return }
+        if let parent = editor.sheetParent {
+            parent.endSheet(editor)
+        } else {
+            editor.close()
+            clearAdvancedTrackpadPolicyRuleForm()
+        }
+    }
+
+    @objc private func removeAdvancedTrackpadPolicyRule(_ sender: NSButton) {
+        guard let tableView = trackpadPolicyTableView else { return }
+        let selectedRows = tableView.selectedRowIndexes
+        guard !selectedRows.isEmpty else { return }
+        var rules = trackpadPolicyRulesDataSource.rules
+        for index in selectedRows.sorted(by: >) {
+            rules.remove(at: index)
+        }
+        guard saveAdvancedPolicyRules(rules) else { return }
+        trackpadPolicyRulesDataSource.rules = currentAdvancedPolicyRules()
+        tableView.reloadData()
+    }
+
+    @objc private func closeAdvancedTrackpadPolicyEditor(_ sender: NSButton) {
+        guard let editor = trackpadPolicyEditorWindow, let parent = editor.sheetParent else { return }
         parent.endSheet(editor)
     }
     

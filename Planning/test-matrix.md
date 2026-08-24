@@ -1,6 +1,6 @@
 # Remediation Test Matrix
 
-Updated: 2026-08-24 · Branches: `codex/remediation-p0`, `codex/remediation-p1`, `codex/remediation-lifecycle`, `codex/remediation-dock-payload`, `codex/remediation-scroll-reset`, `codex/remediation-login-items`
+Updated: 2026-08-24 · Branches: `codex/remediation-p0`, `codex/remediation-p1`, `codex/remediation-lifecycle`, `codex/remediation-dock-payload`, `codex/remediation-scroll-reset`, `codex/remediation-login-items`, `codex/remediation-policy-editor`
 
 This records current evidence for the compatibility remediation. A successful
 build is not evidence that the input path works on physical hardware, so those
@@ -15,6 +15,7 @@ checks remain explicitly open.
 | Helper disable | Pass | In the signed Debug app, the General toggle disabled Buttons and Scrolling, removed the ServiceManagement job, and terminated the helper process. |
 | Settings navigation | Pass | One-click navigation between tabs was verified in the signed Debug app. |
 | Per-app policy core | Pass | Direct Swift suite verifies canonical decode/encode, v25 legacy semantics, selector precedence, stable-identity fallback rules, duplicate/invalid input rejection, and bounded rule count. The App/Helper Debug and Release builds compile the runtime integration. |
+| Per-app policy authoring | Deterministic core pass; UI partial | The Scrolling tab now exposes a spacious Advanced Application Rules sheet with inline validation, dynamic selector examples, and a Choose App… action for exact paths/bundle IDs. Finder can be selected to fill `/System/Library/CoreServices/Finder.app/Contents/MacOS/Finder`; ordinary bundle-ID rules remain under Edit Apps…. Signed UI interaction and Java/wrapper/full-screen runtime behavior remain manual gates. |
 | Per-app runtime/UI | Partial pass | The signed P1 build passed All Apps, Only These Apps, and All Except These Apps runtime testing. Java/wrapper, full-screen, missing-app, app-switch-mid-series, and iPhone Mirroring cases remain explicit gates. |
 | Click-cycle cancellation | Pass | Deterministic Swift reducer tests cover release, replacement cycle, stale hold/expiry callbacks, and idempotent teardown. |
 | Button gesture semantics | Pass | The signed P1 build passed single/double click, hold, click-drag, and click-scroll remap testing. Automated coverage remains focused on timer cancellation; app-specific compatibility stays in the broader matrix. |

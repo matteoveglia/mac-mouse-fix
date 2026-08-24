@@ -234,7 +234,10 @@ class ScrollTabController: NSViewController {
         scopeSelectionRow.spacing = 10
         scopeSelectionRow.distribution = .fill
 
-        let buttonRow = NSStackView(views: [trackpadAppsButton, advancedButton])
+        // This row owns the collapsible Edit Apps button. It must use the
+        // custom stack type because Reactive.isCollapsed expects the target
+        // view to be a direct child of a CollapsingStackView.
+        let buttonRow = CollapsingStackView(views: [trackpadAppsButton, advancedButton])
         buttonRow.orientation = .horizontal
         buttonRow.alignment = .centerY
         buttonRow.spacing = 8

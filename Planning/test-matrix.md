@@ -1,6 +1,6 @@
 # Remediation Test Matrix
 
-Updated: 2026-08-24 · Branches: `codex/remediation-p0`, `codex/remediation-p1`, `codex/remediation-lifecycle`, `codex/remediation-dock-payload`, `codex/remediation-scroll-reset`
+Updated: 2026-08-24 · Branches: `codex/remediation-p0`, `codex/remediation-p1`, `codex/remediation-lifecycle`, `codex/remediation-dock-payload`, `codex/remediation-scroll-reset`, `codex/remediation-login-items`
 
 This records current evidence for the compatibility remediation. A successful
 build is not evidence that the input path works on physical hardware, so those
@@ -25,7 +25,8 @@ checks remain explicitly open.
 | Pointer-freeze / two-finger drag | Pass | The signed lifecycle build completed modified-drag testing without leaving the real pointer frozen or hidden. Extended soak and interruption testing remains part of the broader lifecycle matrix. |
 | Scroll and virtual/remote input | Pass for tested signed build | Fast scrolling and the scroll-reset interruption checks passed on the user’s signed build using a mouse remote to this machine. The branch deterministically rejects stale queued/animation generations and compiles in Debug and Release. Browser maps, iPhone Mirroring, other remote sources, and wider hardware combinations remain broader compatibility gates. Do not assess horizontal scaling: it is intentionally not part of this fork. |
 | Dock swipes | Pass on local signed build | Reducer and bridge suites pass. The signed Xcode 27 build passed Spaces, Mission Control, Show Desktop, and Launchpad in normal/inverted directions, including reversal and slow/fast release, with no rebound or stuck transition. Multiple-display arrangements and deliberately overlapping scroll/drag attempts remain broader compatibility gates. |
-| Accessibility / lifecycle | Partial pass | Rapid disable/enable cycling and quit/reopen passed in the signed lifecycle build. The user confirmed that Login Items became discoverable after moving the signed app into `~/Applications`; transient/disposable build locations are not valid Login Items test targets. Cold permission revoke/regrant, sleep/wake, login launch from a cold boot, and fast-user switching remain pending. |
+| Login Items registration | Deterministic core pass; runtime partial | The login-items branch rejects disposable build locations before registration, validates the embedded helper path, reconciles `SMAppServiceStatusRequiresApproval`/`NotRegistered`/`NotFound` instead of reporting them as enabled, and passes pure path/status tests for installed, moved, duplicate, and disposable copies. The user confirmed that Login Items became discoverable after moving the signed app into `~/Applications`; cold logout/login, move, duplicate-copy, and System Settings approval remain manual gates. |
+| Accessibility / lifecycle | Partial pass | Rapid disable/enable cycling and quit/reopen passed in the signed lifecycle build. Transient/disposable build locations are not valid Login Items test targets. Cold permission revoke/regrant, sleep/wake, login launch from a cold boot, and fast-user switching remain pending. |
 | Release distribution | Blocked by product decision | The fork retains upstream `com.nuebling.*` IDs and keychain group. Choose owned bundle IDs and keychain migration before signed Release distribution. |
 
 ## Test protocol

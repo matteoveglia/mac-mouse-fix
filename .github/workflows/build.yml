@@ -114,6 +114,16 @@ jobs:
             -o "$RUNNER_TEMP/scroll-generation-tests"
           "$RUNNER_TEMP/scroll-generation-tests"
 
+          xcrun clang \
+            -fobjc-arc \
+            -framework Foundation \
+            -Werror \
+            -I Shared/HelperServices \
+            Shared/HelperServices/MFHelperServiceRegistration.m \
+            Tests/MFHelperServiceRegistrationTests.m \
+            -o "$RUNNER_TEMP/helper-service-registration-tests"
+          "$RUNNER_TEMP/helper-service-registration-tests"
+
       - name: Prepare disposable build source
         run: ditto "$GITHUB_WORKSPACE" "$RUNNER_TEMP/source"
 

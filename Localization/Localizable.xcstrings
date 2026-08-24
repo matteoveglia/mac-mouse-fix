@@ -7426,7 +7426,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mac Mouse Fix was **disabled** in System Settings\n\nTo enable Mac Mouse Fix:\n\n1. Go to [Login Items Settings](%@)\n2. Switch on 'Mac Mouse Fix.app'"
+            "value" : "Mac Mouse Fix was **disabled** in System Settings\n\nTo enable Mac Mouse Fix:\n\n1. Go to [Login Items Settings](%@)\n2. Switch on 'Mac Mouse Fix.app'\n\nIf the app is not listed, quit this copy and move the signed app to your Applications folder, then open it again."
           }
         },
         "es" : {

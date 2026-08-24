@@ -57,6 +57,7 @@
 
 #import <AppKit/AppKit.h>
 #import "HelperServices.h"
+#import "MFHelperServiceRegistration.h"
 #import "Constants.h"
 #import "Locator.h"
 #import "SharedUtility.h"
@@ -439,11 +440,33 @@ static BOOL helperIsActive_PList(void) {
         SMAppService *service = [SMAppService agentServiceWithPlistName:@"sm_launchd.plist"];
 
         if (enable) {
+            NSError *preflightError = MFHelperServicePreflightError(Locator.mainAppBundle.bundleURL,
+                                                                     Locator.helperBundle.bundleURL);
+            if (preflightError != nil) {
+                DDLogError("Refusing to register helper because the current app/helper bundle layout is invalid: %@", preflightError);
+                return preflightError;
+            }
+
             BOOL success = [service registerAndReturnError:&error];
             if (!success){
                 NSLog(@"Failed to register Helper with error: %@", error);
+                NSError *statusError = MFHelperServiceErrorForStatus(YES, (MFHelperServiceRegistrationStatus)service.status);
+                if (statusError == nil) {
+                    /// A concurrent registration may have completed the
+                    /// request even though this call returned an error.
+                    error = nil;
+                    NSLog(@"Helper registration is already enabled after register returned an error.");
+                } else if (error == nil) {
+                    error = statusError;
+                }
             } else {
-                NSLog(@"Registered Helper!");
+                NSError *statusError = MFHelperServiceErrorForStatus(YES, (MFHelperServiceRegistrationStatus)service.status);
+                if (statusError != nil) {
+                    error = statusError;
+                    NSLog(@"Helper registration requires follow-up action: %@", statusError);
+                } else {
+                    NSLog(@"Registered Helper!");
+                }
             }
         } else {
             BOOL success = [service unregisterAndReturnError:&error];
@@ -458,14 +481,22 @@ static BOOL helperIsActive_PList(void) {
                 /// If the service is still not enabled after the attempt, the
                 /// requested state has been reached, so let the caller update
                 /// the UI and terminate any remaining helper process.
-                if (service.status != SMAppServiceStatusEnabled) {
+                NSError *statusError = MFHelperServiceErrorForStatus(NO, (MFHelperServiceRegistrationStatus)service.status);
+                if (statusError == nil) {
                     NSLog(@"Helper service was already disabled after unregister attempt (status: %ld, error: %@).", (long)service.status, error);
                     error = nil;
                 } else {
+                    if (error == nil) error = statusError;
                     NSLog(@"Failed to UNregister Helper with error: %@", error);
                 }
             } else {
-                NSLog(@"Unregistered Helper.");
+                NSError *statusError = MFHelperServiceErrorForStatus(NO, (MFHelperServiceRegistrationStatus)service.status);
+                if (statusError != nil) {
+                    error = statusError;
+                    NSLog(@"Helper unregister returned success but status reconciliation failed: %@", statusError);
+                } else {
+                    NSLog(@"Unregistered Helper.");
+                }
             }
             
             

@@ -1,8 +1,8 @@
 # 05 — Upstream Remediation Plan
 
-Date: 2026-08-24
+Date: 2026-08-26
 Scope: `noah-nuebling/mac-mouse-fix` upstream and this revival fork
-Status: active plan; fork PR #1 merged the scrolling/configuration baseline, fork PR #2 carries the P0 compatibility series, `codex/remediation-p1` carries the first P1 architecture increments, fork PR #6 carries the generation-based scroll reset and helper-registration recovery work, `codex/remediation-login-items` carries the installed-path registration increment, and `codex/remediation-policy-editor` carries the advanced app-selector authoring increment. This document supersedes `03-backlog-triage.md` and `04-roadmap.md` where they conflict.
+Status: active plan; fork PR #1 merged the scrolling/configuration baseline, fork PR #2 carries the P0 compatibility series, `codex/remediation-p1` carries the first P1 architecture increments, fork PR #6 carries the generation-based scroll reset and helper-registration recovery work, `codex/remediation-login-items` carries the installed-path registration increment, `codex/remediation-policy-editor` carries the advanced app-selector authoring increment, and `codex/remediation-lifecycle-closure` carries the current signed lifecycle verification. This document supersedes `03-backlog-triage.md` and `04-roadmap.md` where they conflict.
 
 ## Executive decision
 
@@ -17,19 +17,19 @@ None of the 27 open PRs should be merged wholesale. Several contain useful ideas
 
 ## 1. Inventory snapshot
 
-The tracker was queried live on 2026-08-23. GitHub reports 1,212 open items in the repository metadata; that number includes pull requests. Filtering the REST results gives:
+The tracker was queried live on 2026-08-26. GitHub reports 1,214 open items in the repository metadata; that number includes pull requests. Filtering the REST results gives:
 
 | Object | Count | Meaning |
 |---|---:|---|
-| Open issues | 1,185 | Full issue-triage scope |
+| Open issues | 1,187 | Full issue-triage scope |
 | Open PRs | 27 | Full open-PR disposition below |
 | All PRs, open or closed | 78 | 20 merged, 31 closed without merge, 27 open |
-| Highest issue number | 1,978 | Tracker is sparse; issue number is not issue count |
+| Highest issue number | 1,983 | Tracker is sparse; issue number is not issue count |
 | Highest PR number | 1,979 | The user’s own compatibility PR is excluded from upstream backlog decisions |
 
-Upstream is not archived and is still receiving automated commits, but the latest non-bot maintainer commits observed were on 2026-06-21/22. The latest releases remain stable `3.0.8` (2025-09-12) and prerelease `3.1.0-Beta-1` (2025-11-29). This is a stalled project with occasional maintenance, not a formally abandoned repository; every proposed upstream PR should therefore be narrow and easy for the maintainer to review later.
+Upstream is not archived and is still receiving automated commits. The latest repository commits observed were generated `Acknowledgements.md` updates rather than new substantive maintainer work. The latest releases remain stable `3.0.8` (2025-09-12) and prerelease `3.1.0-Beta-1` (2025-11-29). This is a stalled project with occasional maintenance, not a formally abandoned repository; every proposed upstream PR should therefore be narrow and easy for the maintainer to review later.
 
-The complete issue set was classified by labels, title/body search, duplicate families, platform, and actionable state. Labels overlap, so their counts are indicators rather than additive totals:
+The complete issue set was classified by labels, title/body search, duplicate families, platform, and actionable state. Labels overlap, so their counts are indicators rather than additive totals. The primary taxonomy below is the 2026-08-23 classification snapshot and still sums to 1,185; the two newer open issues have not yet been manually reclassified, so these category totals must not be read as the current tracker total:
 
 The audit also assigned every open issue one primary, non-overlapping taxonomy category:
 

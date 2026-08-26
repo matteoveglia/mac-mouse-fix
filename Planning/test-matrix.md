@@ -1,6 +1,6 @@
 # Remediation Test Matrix
 
-Updated: 2026-08-24 · Branches: `codex/remediation-p0`, `codex/remediation-p1`, `codex/remediation-lifecycle`, `codex/remediation-dock-payload`, `codex/remediation-scroll-reset`, `codex/remediation-login-items`, `codex/remediation-policy-editor`
+Updated: 2026-08-26 · Branches: `codex/remediation-p0`, `codex/remediation-p1`, `codex/remediation-lifecycle`, `codex/remediation-dock-payload`, `codex/remediation-scroll-reset`, `codex/remediation-login-items`, `codex/remediation-policy-editor`, `codex/remediation-lifecycle-closure`
 
 This records current evidence for the compatibility remediation. A successful
 build is not evidence that the input path works on physical hardware, so those
@@ -8,12 +8,12 @@ checks remain explicitly open.
 
 | Area | Current result | Evidence / next check |
 |---|---|---|
-| Debug App and embedded Helper | Pass | Signed `xcodebuild -scheme App -configuration Debug -destination 'platform=macOS' build` with Xcode 27. |
-| Regression harness | Pass | Unsigned `xcodebuild -scheme Tests -configuration Debug -destination 'platform=macOS' build CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO`. The target is a harness, not XCTest. |
+| Debug App and embedded Helper | Pass | On `codex/remediation-lifecycle-closure`, signed `xcodebuild -scheme App -configuration Debug -destination 'platform=macOS' build` completed; `codesign --verify --deep --strict` and the embedded helper signature check passed. |
+| Regression harness | Pass | Unsigned `xcodebuild -scheme Tests -configuration Debug -destination 'platform=macOS' build CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO`, plus `DETERMINISTIC_TEST_SUITE=passed` on the current lifecycle branch. The target is a harness, not XCTest. |
 | Static analysis | Pass with legacy findings | `xcodebuild -scheme App ... analyze` completed. Existing warnings are tracked separately; none came from the current cache, helper-service, key-capture, or pointer-freeze changes. |
 | Helper enable | Pass | A native pointer click in the signed Debug app started the ServiceManagement job and helper process; Buttons and Scrolling became available. |
 | Helper disable | Pass | In the signed Debug app, the General toggle disabled Buttons and Scrolling, removed the ServiceManagement job, and terminated the helper process. |
-| Settings navigation | Pass | One-click navigation between tabs was verified in the signed Debug app. |
+| Settings navigation | Pass | One-click navigation between tabs was verified again in the fresh signed lifecycle build. |
 | Per-app policy core | Pass | Direct Swift suite verifies canonical decode/encode, v25 legacy semantics, selector precedence, stable-identity fallback rules, duplicate/invalid input rejection, and bounded rule count. The App/Helper Debug and Release builds compile the runtime integration. |
 | Per-app policy authoring | Deterministic core pass; UI partial | The Scrolling tab exposes a spacious Advanced Application Rules sheet through the persistent Apply To → Advanced mode. Its contextual button reads Edit Rules…, legacy modes keep Edit Apps…, and Advanced mode ignores the legacy app list. Inline validation, dynamic selector examples, and a Choose App… action support exact paths/bundle IDs. Finder can be selected to fill `/System/Library/CoreServices/Finder.app/Contents/MacOS/Finder`; signed Java/wrapper/full-screen runtime behavior remains a manual gate. |
 | Per-app runtime/UI | Partial pass | The signed P1 build passed All Apps, Only These Apps, and All Except These Apps runtime testing. Java/wrapper, full-screen, missing-app, app-switch-mid-series, and iPhone Mirroring cases remain explicit gates. |
@@ -27,7 +27,7 @@ checks remain explicitly open.
 | Scroll and virtual/remote input | Pass for tested signed build | Fast scrolling and the scroll-reset interruption checks passed on the user’s signed build using a mouse remote to this machine. The branch deterministically rejects stale queued/animation generations and compiles in Debug and Release. Browser maps, iPhone Mirroring, other remote sources, and wider hardware combinations remain broader compatibility gates. Do not assess horizontal scaling: it is intentionally not part of this fork. |
 | Dock swipes | Pass on local signed build | Reducer and bridge suites pass. The signed Xcode 27 build passed Spaces, Mission Control, Show Desktop, and Launchpad in normal/inverted directions, including reversal and slow/fast release, with no rebound or stuck transition. Multiple-display arrangements and deliberately overlapping scroll/drag attempts remain broader compatibility gates. |
 | Login Items registration | Deterministic core pass; runtime partial | The login-items branch rejects disposable build locations before registration, validates the embedded helper path, reconciles `SMAppServiceStatusRequiresApproval`/`NotRegistered`/`NotFound` instead of reporting them as enabled, and passes pure path/status tests for installed, moved, duplicate, and disposable copies. The user confirmed that Login Items became discoverable after moving the signed app into `~/Applications`; cold logout/login, move, duplicate-copy, and System Settings approval remain manual gates. |
-| Accessibility / lifecycle | Partial pass | Rapid disable/enable cycling and quit/reopen passed in the signed lifecycle build. Transient/disposable build locations are not valid Login Items test targets. Cold permission revoke/regrant, sleep/wake, login launch from a cold boot, and fast-user switching remain pending. |
+| Accessibility / lifecycle | Partial pass | Rapid disable/enable cycling, quit/reopen, and the fresh signed lifecycle build passed. Transient/disposable build locations are not valid Login Items test targets. Cold permission revoke/regrant, helper restart, sleep/wake, login launch from a cold boot, and fast-user switching remain pending. |
 | Release distribution | Blocked by product decision | The fork retains upstream `com.nuebling.*` IDs and keychain group. Choose owned bundle IDs and keychain migration before signed Release distribution. |
 
 ## Test protocol

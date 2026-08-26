@@ -91,6 +91,19 @@ jobs:
 
           xcrun clang \
             -fobjc-arc \
+            -fblocks \
+            -fmodules \
+            -framework Foundation \
+            -framework AppKit \
+            -framework CoreGraphics \
+            -Werror \
+            -I Helper/Utility \
+            Tests/MFWindowUnderPointerTests.m \
+            -o "$RUNNER_TEMP/window-under-pointer-tests"
+          "$RUNNER_TEMP/window-under-pointer-tests"
+
+          xcrun clang \
+            -fobjc-arc \
             -framework Foundation \
             -Werror \
             -I Shared/IOKit \

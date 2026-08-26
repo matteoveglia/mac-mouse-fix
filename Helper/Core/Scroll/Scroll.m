@@ -107,7 +107,7 @@ typedef enum {
 
 void resetState_Unsafe(void);
 void resetStateComponents_Unsafe(void);
-static void heavyProcessing(CGEventRef event, int64_t scrollDeltaAxis1, int64_t scrollDeltaAxis2, CFTimeInterval tickTS, uint64_t generation);
+static void heavyProcessing(CGEventRef event, int64_t scrollDeltaAxis1, int64_t scrollDeltaAxis2, CFTimeInterval tickTS, CGWindowID windowNumberUnderMousePointer, uint64_t generation);
 static void sendScroll(int64_t px, MFDirection scrollDirection, BOOL animated, MFAnimationCallbackPhase animationPhase, MFMomentumHint momentumHint, ScrollConfig *config, uint64_t generation, bool allowStaleTerminal);
 static void sendOutputEvents(int64_t dx, int64_t dy, MFScrollOutputType outputType, MFAnimationCallbackPhase animatorPhase, MFMomentumHint momentumHint, ScrollConfig *config, uint64_t generation, bool allowStaleTerminal);
 
@@ -396,6 +396,7 @@ static CGEventRef eventTapCallback(CGEventTapProxy proxy, CGEventType type, CGEv
     
     CGEventRef eventCopy = CGEventCreateCopy(event); /// Create a copy, because the original event will become invalid and unusable in the new queue.
     if (!eventCopy) return event;
+    CGWindowID windowNumberUnderMousePointer = MFWindowNumberUnderMousePointerFromEvent(event);
     uint64_t generation = MFScrollGenerationCurrent(&_scrollGeneration);
     
     /// Enqueue heavy processing
@@ -406,7 +407,7 @@ static CGEventRef eventTapCallback(CGEventTapProxy proxy, CGEventType type, CGEv
             CFRelease(eventCopy);
             return;
         }
-        heavyProcessing(eventCopy, scrollDeltaAxis1, scrollDeltaAxis2, tickTime, generation);
+        heavyProcessing(eventCopy, scrollDeltaAxis1, scrollDeltaAxis2, tickTime, windowNumberUnderMousePointer, generation);
     });
     
     return NULL;
@@ -414,7 +415,7 @@ static CGEventRef eventTapCallback(CGEventTapProxy proxy, CGEventType type, CGEv
 
 #pragma mark - Main event processing
 
-static void heavyProcessing(CGEventRef event, int64_t scrollDeltaAxis1, int64_t scrollDeltaAxis2, CFTimeInterval tickTS, uint64_t generation) {
+static void heavyProcessing(CGEventRef event, int64_t scrollDeltaAxis1, int64_t scrollDeltaAxis2, CFTimeInterval tickTS, CGWindowID windowNumberUnderMousePointer, uint64_t generation) {
     
     /// Declare stuff for later
     static DriverUnsuspender unsuspendDrivers = ^{}; /// This is old stuff that should be removed I think [Jun 2 2025]
@@ -534,7 +535,7 @@ static void heavyProcessing(CGEventRef event, int64_t scrollDeltaAxis1, int64_t 
         [HelperUtility displayUnderMousePointer:&displayID withEvent:event];
         
         /// Get scrollConfig
-        NSRunningApplication *application = [HelperUtility appUnderMousePointerWithEvent:event];
+        NSRunningApplication *application = [HelperUtility appForWindowNumber:windowNumberUnderMousePointer];
         MFApplicationIdentity *applicationIdentity = application == nil ? nil : [[MFApplicationIdentity alloc] initWithRunningApplication:application];
         _scrollConfig = [ScrollConfig scrollConfigWithModifiers:newMods inputAxis:inputAxis display:displayID applicationIdentity:applicationIdentity];
         

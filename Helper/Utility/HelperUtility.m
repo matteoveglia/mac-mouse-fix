@@ -59,46 +59,39 @@
 
 #pragma mark - App under pointer
 
++ (NSRunningApplication * _Nullable)appForWindowNumber:(CGWindowID)windowNumber {
+    if (windowNumber == kCGNullWindowID) return nil;
+
+    /// IncludingWindow must be paired with an above/below option.  Filter the
+    /// result explicitly because the returned array can contain surrounding
+    /// windows as well as the requested one.
+    NSArray *windowInfo = (__bridge_transfer NSArray *)CGWindowListCopyWindowInfo(
+        kCGWindowListOptionIncludingWindow | kCGWindowListOptionOnScreenAboveWindow,
+        windowNumber);
+    pid_t pid = MFProcessIdentifierForWindowNumberFromWindowInfo(windowInfo, windowNumber);
+    if (pid <= 0) return nil;
+    return [NSRunningApplication runningApplicationWithProcessIdentifier:pid];
+}
+
 + (NSRunningApplication * _Nullable)appUnderMousePointerWithEvent:(CGEventRef _Nullable)event {
     
     ///
     /// Get PID under mouse pointer
     ///
     
-    pid_t pidUnderPointer = -1; /// I hope -1 is actually unused?
-    
-    /// v New version. Should be a lot faster!
-    
-    NSPoint pointerLoc;
-    if (event != NULL) {
-        pointerLoc = getFlippedPointerLocationWithEvent(event);
-    } else {
-        pointerLoc = getFlippedPointerLocation();
+    /// Scroll events normally carry the WindowServer window number.  Use the
+    /// exact-ID path whenever it is present; callers that do not have event
+    /// metadata retain the older point-based fallback below.
+    CGWindowID windowNumber = MFWindowNumberUnderMousePointerFromEvent(event);
+    if (windowNumber == kCGNullWindowID) {
+        NSPoint pointerLoc = event != NULL
+            ? getFlippedPointerLocationWithEvent(event)
+            : getFlippedPointerLocation();
+        windowNumber = (CGWindowID)[NSWindow windowNumberAtPoint:pointerLoc belowWindowWithWindowNumber:0];
     }
-    
-    CGWindowID windowNumber = (CGWindowID)[NSWindow windowNumberAtPoint:pointerLoc belowWindowWithWindowNumber:0];
-    NSArray *windowInfo = (__bridge_transfer NSArray *)CGWindowListCopyWindowInfo(kCGWindowListOptionIncludingWindow, windowNumber);
-    if (windowInfo.count > 0) {
-        pidUnderPointer = [windowInfo[0][(__bridge NSString *)kCGWindowOwnerPID] intValue];
-    }
-    
-    if ((NO)) {
-        
-        /// v Old version. Uses AXUI API. Inspired by MOS' approach. AXUIElementCopyElementAtPosition() was incredibly slow sometimes. Right now it takes a second to return when scrolling on new Reddit in Safari on M1 Ventura Beta. On other windows and websites it's not noticably slow but still very slow in code terms.
-        
-//        CGPoint mouseLocation = getPointerLocation();
-//        AXUIElementRef elementUnderMousePointer;
-//        AXUIElementCopyElementAtPosition(Scroll.systemWideAXUIElement, mouseLocation.x, mouseLocation.y, &elementUnderMousePointer);
-//        if (elementUnderMousePointer != nil) {
-//            AXUIElementGetPid(elementUnderMousePointer, &pidUnderPointer);
-//            CFRelease(elementUnderMousePointer);
-//        }
-    }
-    
-    /// Get runningApplication
-    NSRunningApplication *appUnderMousePointer = [NSRunningApplication runningApplicationWithProcessIdentifier:pidUnderPointer];
-    
-    return appUnderMousePointer;
+    if (windowNumber == kCGNullWindowID) return nil;
+
+    return [self appForWindowNumber:windowNumber];
 }
 #pragma mark - Other
 

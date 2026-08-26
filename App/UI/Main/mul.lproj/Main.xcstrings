@@ -3807,7 +3807,7 @@
       "shouldTranslate" : false
     },
     "gK0-1z-Pjv.title" : {
-      "comment" : "Class = \"NSButtonCell\"; title = \"Reverse Vertical Scroll Direction\"; ObjectID = \"gK0-1z-Pjv\"; Note = \"Scrolling > Reverse Vertical Scroll Direction Toggle\";",
+      "comment" : "Class = \"NSButtonCell\"; title = \"Reverse Vertical Scroll\"; ObjectID = \"gK0-1z-Pjv\"; Note = \"Scrolling > Reverse Vertical Scroll Toggle\";",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "cs" : {
@@ -3825,7 +3825,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "Reverse Vertical Scroll Direction"
+            "value" : "Reverse Vertical Scroll"
           }
         },
         "es" : {
@@ -3891,7 +3891,7 @@
       }
     },
     "mWp-2T-9vK.title" : {
-      "comment" : "Class = \"NSButtonCell\"; title = \"Reverse Horizontal Scroll Direction\"; ObjectID = \"mWp-2T-9vK\"; Note = \"Scrolling > Reverse Horizontal Scroll Direction Toggle\";",
+      "comment" : "Class = \"NSButtonCell\"; title = \"Reverse Horizontal Scroll\"; ObjectID = \"mWp-2T-9vK\"; Note = \"Scrolling > Reverse Horizontal Scroll Toggle\";",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "cs" : {
@@ -3909,7 +3909,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "Reverse Horizontal Scroll Direction"
+            "value" : "Reverse Horizontal Scroll"
           }
         },
         "es" : {

@@ -168,7 +168,11 @@ class ScrollTabController: NSViewController {
     @IBOutlet weak var preciseModField: ModCaptureTextField!
     @IBOutlet weak var restoreDefaultModsButton: NSButton!
 
-    private var trackpadScopeRow: NSStackView?
+    private var trackpadScopeRow: NSView?
+    private var trackpadScopeRowHeightConstraint: NSLayoutConstraint?
+    private var trackpadAppsButtonTopConstraint: NSLayoutConstraint?
+    private var trackpadAppsButtonHeightConstraint: NSLayoutConstraint?
+    private var trackpadAppsButtonTransitionID = 0
     private var speedDivider: NSView?
     private var trackpadAppsEditorWindow: NSWindow?
     private var trackpadAppsTableView: NSTableView?
@@ -240,19 +244,16 @@ class ScrollTabController: NSViewController {
         trackpadAppsButton.action = #selector(editTrackpadApps(_:))
 
         let scopeSelectionRow = NSStackView(views: [applyToLabel, trackpadScopePicker])
+        scopeSelectionRow.translatesAutoresizingMaskIntoConstraints = false
         scopeSelectionRow.orientation = .horizontal
         scopeSelectionRow.alignment = .centerY
         scopeSelectionRow.spacing = 10
         scopeSelectionRow.distribution = .fill
 
-        // This stack owns the collapsible Edit Apps button. It must use the
-        // custom stack type because Reactive.isCollapsed expects the target
-        // view to be a direct child of a CollapsingStackView.
-        let compactScopeRow = CollapsingStackView(views: [scopeSelectionRow, trackpadAppsButton])
-        compactScopeRow.orientation = .vertical
-        compactScopeRow.alignment = .trailing
-        compactScopeRow.spacing = 6
-        compactScopeRow.distribution = .fill
+        let compactScopeRow = NSView()
+        compactScopeRow.translatesAutoresizingMaskIntoConstraints = false
+        compactScopeRow.addSubview(scopeSelectionRow)
+        compactScopeRow.addSubview(trackpadAppsButton)
         trackpadScopeRow = compactScopeRow
 
         let scopeIndex = trackpadSection.arrangedSubviews.firstIndex(of: scopeStack) ?? trackpadSection.arrangedSubviews.count
@@ -260,14 +261,28 @@ class ScrollTabController: NSViewController {
         scopeStack.removeFromSuperview()
         trackpadSection.insertArrangedSubview(compactScopeRow, at: scopeIndex)
         compactScopeRow.widthAnchor.constraint(equalTo: trackpadSection.widthAnchor).isActive = true
-        // Keep the parent row's frame stable while the custom collapsing stack
-        // animates the contextual button itself. Without this constraint the
-        // surrounding NSStackView has an ambiguous height during sheet
-        // presentation and can produce invalid window frames on macOS 27.
-        let scopeRowHeightConstraint = compactScopeRow.heightAnchor.constraint(equalToConstant: 59)
+        let isButtonVisible = (trackpadScope.get() ?? TrackpadScopeIdentifier.all) != TrackpadScopeIdentifier.all
+        let initialHeight: CGFloat = isButtonVisible ? 54 : 24
+        let scopeRowHeightConstraint = compactScopeRow.heightAnchor.constraint(equalToConstant: initialHeight)
         scopeRowHeightConstraint.isActive = true
-        scopeSelectionRow.widthAnchor.constraint(equalTo: compactScopeRow.widthAnchor).isActive = true
+        trackpadScopeRowHeightConstraint = scopeRowHeightConstraint
+        let buttonTopConstraint = trackpadAppsButton.topAnchor.constraint(equalTo: scopeSelectionRow.bottomAnchor,
+                                                                          constant: isButtonVisible ? 6 : 0)
+        let buttonHeightConstraint = trackpadAppsButton.heightAnchor.constraint(equalToConstant: isButtonVisible ? 24 : 0)
+        NSLayoutConstraint.activate([
+            scopeSelectionRow.topAnchor.constraint(equalTo: compactScopeRow.topAnchor),
+            scopeSelectionRow.leadingAnchor.constraint(equalTo: compactScopeRow.leadingAnchor),
+            scopeSelectionRow.trailingAnchor.constraint(equalTo: compactScopeRow.trailingAnchor),
+            buttonTopConstraint,
+            trackpadAppsButton.trailingAnchor.constraint(equalTo: compactScopeRow.trailingAnchor),
+            buttonHeightConstraint,
+            compactScopeRow.bottomAnchor.constraint(equalTo: trackpadAppsButton.bottomAnchor),
+        ])
+        trackpadAppsButtonTopConstraint = buttonTopConstraint
+        trackpadAppsButtonHeightConstraint = buttonHeightConstraint
         trackpadAppsButton.setContentHuggingPriority(.required, for: .horizontal)
+        trackpadAppsButton.alphaValue = isButtonVisible ? 1 : 0
+        trackpadAppsButton.isHidden = !isButtonVisible
     }
 
     private func configuredTrackpadApps() -> [String] {
@@ -361,8 +376,60 @@ class ScrollTabController: NSViewController {
             ? #selector(editAdvancedTrackpadPolicy(_:))
             : #selector(editTrackpadApps(_:))
         trackpadAppsButton.isEnabled = hasEditorButton
+        updateTrackpadAppsButtonVisibility(hasEditorButton)
         trackpadAppsTableDataSource.bundleIDs = apps
         trackpadAppsTableView?.reloadData()
+    }
+
+    private func updateTrackpadAppsButtonVisibility(_ isVisible: Bool) {
+        guard let rowHeightConstraint = trackpadScopeRowHeightConstraint,
+              let buttonTopConstraint = trackpadAppsButtonTopConstraint,
+              let buttonHeightConstraint = trackpadAppsButtonHeightConstraint else { return }
+
+        trackpadAppsButtonTransitionID += 1
+        let transitionID = trackpadAppsButtonTransitionID
+        let targetRowHeight: CGFloat = isVisible ? 54 : 24
+        let targetButtonTop: CGFloat = isVisible ? 6 : 0
+        let targetButtonHeight: CGFloat = isVisible ? 24 : 0
+        let needsUpdate = rowHeightConstraint.constant != targetRowHeight
+            || buttonTopConstraint.constant != targetButtonTop
+            || buttonHeightConstraint.constant != targetButtonHeight
+        guard needsUpdate else {
+            trackpadAppsButton.alphaValue = isVisible ? 1 : 0
+            trackpadAppsButton.isHidden = !isVisible
+            return
+        }
+
+        let animate = trackpadScopeRow?.window != nil
+        trackpadAppsButton.isHidden = false
+        if !isVisible {
+            trackpadAppsButton.alphaValue = 1
+        } else {
+            trackpadAppsButton.alphaValue = 0
+        }
+
+        if animate {
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.25
+                context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+                rowHeightConstraint.animator().constant = targetRowHeight
+                buttonTopConstraint.animator().constant = targetButtonTop
+                buttonHeightConstraint.animator().constant = targetButtonHeight
+                trackpadAppsButton.animator().alphaValue = isVisible ? 1 : 0
+                view.layoutSubtreeIfNeeded()
+            } completionHandler: { [weak self] in
+                guard let self, self.trackpadAppsButtonTransitionID == transitionID else { return }
+                self.trackpadAppsButton.isHidden = !isVisible
+                self.trackpadAppsButton.alphaValue = isVisible ? 1 : 0
+            }
+        } else {
+            rowHeightConstraint.constant = targetRowHeight
+            buttonTopConstraint.constant = targetButtonTop
+            buttonHeightConstraint.constant = targetButtonHeight
+            trackpadAppsButton.alphaValue = isVisible ? 1 : 0
+            trackpadAppsButton.isHidden = !isVisible
+            view.layoutSubtreeIfNeeded()
+        }
     }
 
     private func saveTrackpadApps(_ bundleIDs: [String]) {
@@ -517,7 +584,7 @@ class ScrollTabController: NSViewController {
         let contentView = NSView(frame: NSRect(x: 0, y: 0, width: 620, height: 390))
         let ruleCount = currentAdvancedPolicyRules().count
         let ruleSummary = ruleCount == 0 ? "No advanced rules are configured yet." : "\(ruleCount) advanced rule\(ruleCount == 1 ? "" : "s") configured."
-        let instructionLabel = NSTextField(wrappingLabelWithString: "\(ruleSummary)\nThese exact selectors are checked after bundle-ID rules. Use Edit Apps… for ordinary app bundle IDs. Process-name rules are only used when macOS cannot provide a stable application identity.")
+        let instructionLabel = NSTextField(wrappingLabelWithString: ruleSummary)
         instructionLabel.translatesAutoresizingMaskIntoConstraints = false
         instructionLabel.font = .systemFont(ofSize: 13)
 
@@ -535,6 +602,8 @@ class ScrollTabController: NSViewController {
         tableView.addTableColumn(column)
         tableView.dataSource = trackpadPolicyRulesDataSource
         tableView.delegate = trackpadPolicyRulesDataSource
+        tableView.target = self
+        tableView.doubleAction = #selector(editAdvancedTrackpadPolicyRuleFromTable(_:))
         scrollView.documentView = tableView
 
         let addButton = NSButton(title: "Add Rule…", target: self, action: #selector(addAdvancedTrackpadPolicyRule(_:)))
@@ -613,11 +682,17 @@ class ScrollTabController: NSViewController {
         presentAdvancedTrackpadPolicyRuleForm(editingRule: nil)
     }
 
-    @objc private func editSelectedAdvancedTrackpadPolicyRule(_ sender: NSButton) {
+    @objc private func editSelectedAdvancedTrackpadPolicyRule(_ sender: Any) {
         guard let tableView = trackpadPolicyTableView,
               tableView.selectedRowIndexes.count == 1,
               let selectedRule = trackpadPolicyRulesDataSource.rules[safe: tableView.selectedRow] else { return }
         presentAdvancedTrackpadPolicyRuleForm(editingRule: selectedRule)
+    }
+
+    @objc private func editAdvancedTrackpadPolicyRuleFromTable(_ tableView: NSTableView) {
+        guard tableView.clickedRow >= 0,
+              tableView.clickedRow == tableView.selectedRow else { return }
+        editSelectedAdvancedTrackpadPolicyRule(tableView)
     }
 
     private func presentAdvancedTrackpadPolicyRuleForm(editingRule: ApplicationPolicyRule?) {
@@ -625,7 +700,7 @@ class ScrollTabController: NSViewController {
         let existingRule = editingRule
 
         let isEditing = existingRule != nil
-        let contentView = NSView(frame: NSRect(x: 0, y: 0, width: 620, height: 330))
+        let contentView = NSView(frame: NSRect(x: 0, y: 0, width: 700, height: 265))
         let titleLabel = NSTextField(labelWithString: isEditing ? "Edit an exact application rule" : "Add an exact application rule")
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
         titleLabel.font = .boldSystemFont(ofSize: 15)
@@ -675,6 +750,22 @@ class ScrollTabController: NSViewController {
         confirmButton.bezelStyle = .rounded
         confirmButton.keyEquivalent = "\r"
 
+        let messageStack = NSStackView(views: [hint, error])
+        messageStack.translatesAutoresizingMaskIntoConstraints = false
+        messageStack.orientation = .vertical
+        messageStack.alignment = .width
+        messageStack.spacing = 5
+        messageStack.detachesHiddenViews = true
+        messageStack.setContentHuggingPriority(.required, for: .vertical)
+        messageStack.setContentCompressionResistancePriority(.required, for: .vertical)
+
+        let actionStack = NSStackView(views: [cancelButton, confirmButton])
+        actionStack.translatesAutoresizingMaskIntoConstraints = false
+        actionStack.orientation = .horizontal
+        actionStack.alignment = .centerY
+        actionStack.spacing = 8
+        actionStack.distribution = .fill
+
         let valueRow = NSStackView(views: [valueField, chooseButton])
         valueRow.translatesAutoresizingMaskIntoConstraints = false
         valueRow.orientation = .horizontal
@@ -684,7 +775,7 @@ class ScrollTabController: NSViewController {
         valueRow.detachesHiddenViews = true
 
         [titleLabel, kindLabel, kindPopup, effectLabel, effectPopup, valueLabel, valueRow,
-         hint, error, cancelButton, confirmButton].forEach({ contentView.addSubview($0) })
+         messageStack, actionStack].forEach({ contentView.addSubview($0) })
         NSLayoutConstraint.activate([
             titleLabel.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 24),
             titleLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 28),
@@ -713,18 +804,13 @@ class ScrollTabController: NSViewController {
             valueRow.heightAnchor.constraint(equalToConstant: 26),
             chooseButton.widthAnchor.constraint(equalToConstant: 112),
 
-            hint.topAnchor.constraint(equalTo: valueRow.bottomAnchor, constant: 10),
-            hint.leadingAnchor.constraint(equalTo: kindPopup.leadingAnchor),
-            hint.trailingAnchor.constraint(equalTo: kindPopup.trailingAnchor),
-            error.topAnchor.constraint(equalTo: hint.bottomAnchor, constant: 5),
-            error.leadingAnchor.constraint(equalTo: hint.leadingAnchor),
-            error.trailingAnchor.constraint(equalTo: hint.trailingAnchor),
-
-            cancelButton.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -22),
-            cancelButton.trailingAnchor.constraint(equalTo: confirmButton.leadingAnchor, constant: -8),
+            messageStack.topAnchor.constraint(equalTo: valueRow.bottomAnchor, constant: 10),
+            messageStack.leadingAnchor.constraint(equalTo: kindPopup.leadingAnchor),
+            messageStack.trailingAnchor.constraint(equalTo: kindPopup.trailingAnchor),
+            actionStack.topAnchor.constraint(greaterThanOrEqualTo: messageStack.bottomAnchor, constant: 16),
+            actionStack.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -28),
+            actionStack.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -22),
             cancelButton.widthAnchor.constraint(equalToConstant: 100),
-            confirmButton.bottomAnchor.constraint(equalTo: cancelButton.bottomAnchor),
-            confirmButton.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -28),
             confirmButton.widthAnchor.constraint(equalToConstant: 100),
         ])
 
@@ -755,6 +841,13 @@ class ScrollTabController: NSViewController {
         parentWindow.beginSheet(editor) { [weak self] _ in
             self?.clearAdvancedTrackpadPolicyRuleForm()
         }
+    }
+
+    private func resizeAdvancedTrackpadPolicyRuleEntry() {
+        guard let editor = trackpadRuleEntryWindow else { return }
+        let targetHeight: CGFloat = trackpadRuleEntryError?.isHidden == false ? 290 : 265
+        guard editor.contentView?.bounds.height != targetHeight else { return }
+        editor.setContentSize(NSSize(width: 700, height: targetHeight))
     }
 
     private func clearAdvancedTrackpadPolicyRuleForm() {
@@ -840,6 +933,7 @@ class ScrollTabController: NSViewController {
             if let value {
                 valueField.stringValue = value
                 self.trackpadRuleEntryError?.isHidden = true
+                self.resizeAdvancedTrackpadPolicyRuleEntry()
             } else {
                 self.showAdvancedTrackpadPolicyRuleError("The selected app does not expose the identity needed for this selector.")
             }
@@ -855,6 +949,7 @@ class ScrollTabController: NSViewController {
     private func showAdvancedTrackpadPolicyRuleError(_ message: String) {
         trackpadRuleEntryError?.stringValue = message
         trackpadRuleEntryError?.isHidden = false
+        resizeAdvancedTrackpadPolicyRuleEntry()
     }
 
     private func selectorKey(for rule: ApplicationPolicyRule) -> String {
@@ -1046,7 +1141,6 @@ class ScrollTabController: NSViewController {
             identifier!.rawValue
         })
         trackpadScopePicker.reactive.selectedIdentifier <~ trackpadScope.producer.map({ NSUserInterfaceItemIdentifier($0) })
-        trackpadAppsButton.reactive.isCollapsed <~ trackpadScope.producer.map({ $0 == TrackpadScopeIdentifier.all })
         trackpadScope.producer.startWithValues { [weak self] _ in
             guard let self else { return }
             if self.updateApplicationPolicyInConfig() {

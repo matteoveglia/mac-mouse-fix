@@ -14,6 +14,11 @@ Here, we document, what exactly changed as we increased the configVersion
 - Existing canonical policies containing executable, wrapper, or process-name selectors now open in the explicit `advanced` Trackpad Simulation scope.
 - Legacy scope changes continue to preserve those advanced selectors for later reuse, while the helper evaluates only the selected scope.
 
+**27 -> 28**
+
+- Split the shared `Scroll.reverseDirection` setting into independent `Scroll.reverseDirectionVertical` and `Scroll.reverseDirectionHorizontal` settings.
+- Existing reverse-direction preferences are copied to both axes; the legacy key is removed after migration.
+
 **25 -> 26**
 
 - Added the canonical `Scroll.applicationPolicy` snapshot used by the helper at scroll-series boundaries.

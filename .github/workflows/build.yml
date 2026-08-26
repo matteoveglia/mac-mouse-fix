@@ -53,6 +53,12 @@ jobs:
             -o "$RUNNER_TEMP/click-cycle-tests"
           "$RUNNER_TEMP/click-cycle-tests"
 
+          xcrun swiftc \
+            Helper/Core/Config/ScrollDirection.swift \
+            Tests/ScrollDirectionTests.swift \
+            -o "$RUNNER_TEMP/scroll-direction-tests"
+          "$RUNNER_TEMP/scroll-direction-tests"
+
           xcrun clang \
             -fobjc-arc \
             -fblocks \

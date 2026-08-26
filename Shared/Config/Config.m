@@ -657,6 +657,31 @@ NSDictionary *_Nullable _readDictPlist(NSURL *url, bool mutable, NSError * __aut
                     if (hasAdvancedRule) setConfig(@"Scroll.trackpadSimulationScope", @"advanced");
 
                     currentVersion = 27;
+
+                } else if (currentVersion == 27) {
+
+                    /// 27 -> 28
+                    ///     Split the shared reverse-direction setting into
+                    ///     independent vertical and horizontal settings.
+
+                    log(Info, "Upgrading configVersion from 27 to 28...");
+
+                    NSNumber *legacyReverse = [config(@"Scroll.reverseDirection") isKindOfClass:NSNumber.class]
+                        ? (NSNumber *)config(@"Scroll.reverseDirection")
+                        : nil;
+                    NSNumber *defaultReverseVertical = [defaultConfig objectForCoolKeyPath:@"Scroll.reverseDirectionVertical"];
+                    NSNumber *defaultReverseHorizontal = [defaultConfig objectForCoolKeyPath:@"Scroll.reverseDirectionHorizontal"];
+                    NSNumber *fallbackReverse = legacyReverse ?: @YES;
+
+                    if (![config(@"Scroll.reverseDirectionVertical") isKindOfClass:NSNumber.class]) {
+                        setConfig(@"Scroll.reverseDirectionVertical", defaultReverseVertical ?: fallbackReverse);
+                    }
+                    if (![config(@"Scroll.reverseDirectionHorizontal") isKindOfClass:NSNumber.class]) {
+                        setConfig(@"Scroll.reverseDirectionHorizontal", defaultReverseHorizontal ?: fallbackReverse);
+                    }
+                    removeFromConfig(@"Scroll.reverseDirection");
+
+                    currentVersion = 28;
                     
                 } else {
                     

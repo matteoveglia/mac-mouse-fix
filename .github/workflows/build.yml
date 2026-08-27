@@ -104,6 +104,18 @@ jobs:
 
           xcrun clang \
             -fobjc-arc \
+            -fmodules \
+            -framework Foundation \
+            -framework CoreGraphics \
+            -framework Carbon \
+            -Werror \
+            -I Helper/Core/Actions \
+            Tests/MFKeyboardShortcutEventPlanTests.m \
+            -o "$RUNNER_TEMP/keyboard-shortcut-event-plan-tests"
+          "$RUNNER_TEMP/keyboard-shortcut-event-plan-tests"
+
+          xcrun clang \
+            -fobjc-arc \
             -framework Foundation \
             -Werror \
             -I Shared/IOKit \

@@ -22,6 +22,7 @@
 #import "CGSHotKeys.h"
 */
 #import "SymbolicHotKeys.h"
+#import "MFKeyboardShortcutEventPlan.h"
 #import <Carbon/Carbon.h>
 
 @implementation Actions
@@ -222,37 +223,27 @@ static void postKeyboardShortcut(CGKeyCode keyCode, CGSModifierFlags modifierFla
     
     CGEventTapLocation tapLoc = kCGSessionEventTap;
 
-    /// Create key events
-    CGEventRef keyUp = CGEventCreateKeyboardEvent(NULL, keyCode, false);
-    CGEventRef keyDown = CGEventCreateKeyboardEvent(NULL, keyCode, true);
-    CGEventSetFlags(keyDown, (CGEventFlags)modifierFlags);
-    CGEventSetFlags(keyUp, (CGEventFlags)modifierFlags);
-    
-    /// Fix up keyboard type [Aug 2025]
-    ///     Explanation: [Aug 2025] When I attach 2 keyboards to my Mac, one ANSI, one JIS, then `CGEventCreateKeyboardEvent()` seems to not match the keyboard type retrieved any other way we know (MFKeyboardTypeCurrent(), LMGetKbdType(), LMGetKbdLast(), CGEventSourceCreate()).
-    ///         Even when you pass a CGEventSource with the desired keyboardType, CGEventCreateKeyboardEvent() just overrides it. It seems like a bug in CoreGraphics.
-    ///         In practise this messes up the 'Universal Back and Forward' feature we're building, cause `MFEmulateNSMenuItemRemapping()` assumes `MFKeyboardTypeCurrent()` when calculating the vkc that will trigger the shortcut.
-    ///         Observed on: macOS 15.5, 2018 Mac Mini, [Aug 2025]
-    ///
-    ///     ! Keep this when merging with __EventLoggerForBrad__.
-    CGEventSetIntegerValueField(keyDown, kCGKeyboardEventKeyboardType, MFKeyboardTypeCurrent()); /// Keep in sync with `MFEmulateNSMenuItemRemapping()` to make 'Universal Back and Forward' feature work [Aug 2025]
-    CGEventSetIntegerValueField(keyUp,   kCGKeyboardEventKeyboardType, MFKeyboardTypeCurrent());
-    
-    /// Create modifier restore event
-    ///  (Restoring original modifier state the way `postKeyboardEventsForSymbolicHotkey()` does leads to issues with triggering Spotlight)
-    ///      (Sometimes triggered Siri instead)
-//    CGEventFlags originalModifierFlags = CGEventGetFlags(CGEventCreate(NULL));
-    CGEventRef modEvent = CGEventCreate(NULL);
-//    CGEventSetFlags(modEvent, originalModifierFlags);
-    
-    /// Send key events
-    CGEventPost(tapLoc, keyDown);
-    CGEventPost(tapLoc, keyUp);
-    CGEventPost(tapLoc, modEvent);
-    
-    CFRelease(keyDown);
-    CFRelease(keyUp);
-    CFRelease(modEvent);
+    MFKeyboardShortcutEventPlan plan = MFKeyboardShortcutEventPlanMake(keyCode, (CGEventFlags)modifierFlags);
+    for (NSUInteger index = 0; index < plan.count; index++) {
+        MFKeyboardShortcutEventStep step = plan.steps[index];
+        CGEventRef event = CGEventCreateKeyboardEvent(NULL, step.keyCode, step.keyDown);
+        if (event == NULL) continue;
+        CGEventSetFlags(event, step.flags);
+
+        /// Keep this in sync with `MFEmulateNSMenuItemRemapping()`. CoreGraphics
+        /// otherwise chooses the wrong keyboard type on mixed ANSI/JIS setups.
+        CGEventSetIntegerValueField(event, kCGKeyboardEventKeyboardType, MFKeyboardTypeCurrent());
+        CGEventPost(tapLoc, event);
+        CFRelease(event);
+    }
+
+    /// Publish the final non-synthetic flags after the explicit key-up events.
+    CGEventRef restoreEvent = CGEventCreate(NULL);
+    if (restoreEvent != NULL) {
+        CGEventSetFlags(restoreEvent, plan.finalFlags);
+        CGEventPost(tapLoc, restoreEvent);
+        CFRelease(restoreEvent);
+    }
 }
 
 @end

@@ -83,13 +83,16 @@
     /// exact-ID path whenever it is present; callers that do not have event
     /// metadata retain the older point-based fallback below.
     CGWindowID windowNumber = MFWindowNumberUnderMousePointerFromEvent(event);
+    NSRunningApplication *application = [self appForWindowNumber:windowNumber];
+    if (application != nil) return application;
+
+    NSPoint pointerLoc = event != NULL
+        ? getFlippedPointerLocationWithEvent(event)
+        : getFlippedPointerLocation();
+    windowNumber = (CGWindowID)[NSWindow windowNumberAtPoint:pointerLoc belowWindowWithWindowNumber:0];
     if (windowNumber == kCGNullWindowID) {
-        NSPoint pointerLoc = event != NULL
-            ? getFlippedPointerLocationWithEvent(event)
-            : getFlippedPointerLocation();
-        windowNumber = (CGWindowID)[NSWindow windowNumberAtPoint:pointerLoc belowWindowWithWindowNumber:0];
+        return nil;
     }
-    if (windowNumber == kCGNullWindowID) return nil;
 
     return [self appForWindowNumber:windowNumber];
 }

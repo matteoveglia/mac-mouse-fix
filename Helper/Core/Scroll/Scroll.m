@@ -536,6 +536,12 @@ static void heavyProcessing(CGEventRef event, int64_t scrollDeltaAxis1, int64_t 
         
         /// Get scrollConfig
         NSRunningApplication *application = [HelperUtility appForWindowNumber:windowNumberUnderMousePointer];
+        if (application == nil) {
+            /// Mouse-specific WindowServer fields are absent on some physical,
+            /// software, and remote scroll sources. Preserve the point-based
+            /// lookup that handled those events before the fast path was added.
+            application = [HelperUtility appUnderMousePointerWithEvent:event];
+        }
         MFApplicationIdentity *applicationIdentity = application == nil ? nil : [[MFApplicationIdentity alloc] initWithRunningApplication:application];
         _scrollConfig = [ScrollConfig scrollConfigWithModifiers:newMods inputAxis:inputAxis display:displayID applicationIdentity:applicationIdentity];
         

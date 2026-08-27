@@ -109,10 +109,24 @@ jobs:
             -framework CoreGraphics \
             -framework Carbon \
             -Werror \
+            -I Shared/Utility \
             -I Helper/Core/Actions \
             Tests/MFKeyboardShortcutEventPlanTests.m \
             -o "$RUNNER_TEMP/keyboard-shortcut-event-plan-tests"
           "$RUNNER_TEMP/keyboard-shortcut-event-plan-tests"
+
+          xcrun clang \
+            -fobjc-arc \
+            -fmodules \
+            -framework Foundation \
+            -framework CoreGraphics \
+            -framework Carbon \
+            -Werror \
+            -I Shared/Utility \
+            -I Helper/Utility \
+            Tests/MFModifierCaptureStateTests.m \
+            -o "$RUNNER_TEMP/modifier-capture-state-tests"
+          "$RUNNER_TEMP/modifier-capture-state-tests"
 
           xcrun clang \
             -fobjc-arc \

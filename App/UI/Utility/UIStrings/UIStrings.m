@@ -10,6 +10,7 @@
 #import "UIStrings.h"
 #import <Carbon/Carbon.h>
 #import "MASShortcut.h"
+#import "../../../../Shared/Utility/MFKeyboardModifiers.h"
 #import "CGSHotKeys.h"
 #import "SharedUtility.h"
 #import "NSAttributedString+Additions.h"
@@ -332,6 +333,11 @@ static NSAttributedString *getStringForSystemDefinedEventOrSymbolicHotkey(int ty
     
     /// Get modifer flags str
     NSString *flagsStr = [UIStrings getKeyboardModifierString:flags];
+
+    CGEventFlags primaryModifierFlag = MFKeyboardModifierFlagForKeyCode(keyCode);
+    if (primaryModifierFlag != 0 && flags == 0) {
+        return [UIStrings getKeyboardModifierString:primaryModifierFlag].attributed;
+    }
     
     /// Get keyboard key string from MASShortcut
     MASShortcut *masShortcut = [MASShortcut shortcutWithKeyCode:keyCode modifierFlags:0];

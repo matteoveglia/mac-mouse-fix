@@ -32,6 +32,13 @@ int main(void) {
                 @"Command receives an explicit key-up", &failures);
         MFCheck(commandTab.finalFlags == 0, @"Command-Tab leaves no modifier active", &failures);
 
+        MFKeyboardShortcutEventPlan controlOnly = MFKeyboardShortcutEventPlanMake(kVK_Control, 0);
+        MFCheck(controlOnly.count == 2, @"a modifier-only shortcut has one down/up pair", &failures);
+        MFCheck(MFStepEquals(controlOnly.steps[0], kVK_Control, YES, kCGEventFlagMaskControl),
+                @"a modifier primary key sets its flag on key-down", &failures);
+        MFCheck(MFStepEquals(controlOnly.steps[1], kVK_Control, NO, 0),
+                @"a modifier primary key clears its flag on key-up", &failures);
+
         CGEventFlags multiFlags = kCGEventFlagMaskControl | kCGEventFlagMaskShift | kCGEventFlagMaskCommand;
         MFKeyboardShortcutEventPlan multi = MFKeyboardShortcutEventPlanMake(kVK_ANSI_A, multiFlags);
         MFCheck(multi.count == 8, @"three modifiers create six transitions around the key tap", &failures);

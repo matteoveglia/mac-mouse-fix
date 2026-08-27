@@ -12,6 +12,7 @@
 #import "ModificationUtility.h"
 #import "MFEventTapHandle.h"
 #import "MFMessagePort.h"
+#import "MFModifierCaptureState.h"
 #import "Logging.h"
 
 @implementation KeyCaptureMode
@@ -23,6 +24,7 @@
 
 static MFEventTapHandle *_keyCaptureEventTapHandle;
 static BOOL _keyCaptureModeEnabled;
+static MFModifierCaptureState _modifierCaptureState;
 
 static BOOL setKeyCaptureEventTapEnabled(BOOL enabled, const char *reason) {
     NSString *logReason = reason ? [NSString stringWithUTF8String:reason] : @"unknown";
@@ -34,7 +36,10 @@ static BOOL setKeyCaptureEventTapEnabled(BOOL enabled, const char *reason) {
     DDLogInfo("Enabling keyCaptureMode");
     
     if (_keyCaptureEventTapHandle == nil) {
-        _keyCaptureEventTapHandle = [MFEventTapHandle handleWithLocation:kCGHIDEventTap mask:CGEventMaskBit(kCGEventKeyDown) | CGEventMaskBit(NSEventTypeSystemDefined) options:kCGEventTapOptionDefault placement:kCGHeadInsertEventTap callback:keyCaptureModeCallback runLoop:CFRunLoopGetMain() mode:kCFRunLoopCommonModes label:@"KeyCaptureMode"];
+        CGEventMask mask = CGEventMaskBit(kCGEventKeyDown)
+            | CGEventMaskBit(kCGEventFlagsChanged)
+            | CGEventMaskBit(NSEventTypeSystemDefined);
+        _keyCaptureEventTapHandle = [MFEventTapHandle handleWithLocation:kCGHIDEventTap mask:mask options:kCGEventTapOptionDefault placement:kCGHeadInsertEventTap callback:keyCaptureModeCallback runLoop:CFRunLoopGetMain() mode:kCFRunLoopCommonModes label:@"KeyCaptureMode"];
     }
     if (_keyCaptureEventTapHandle == nil) {
         DDLogError("KeyCaptureMode: can't enable key capture because its event tap was not created.");
@@ -43,6 +48,7 @@ static BOOL setKeyCaptureEventTapEnabled(BOOL enabled, const char *reason) {
     }
 
     _keyCaptureModeEnabled = YES;
+    MFModifierCaptureStateReset(&_modifierCaptureState);
     if (!setKeyCaptureEventTapEnabled(YES, "enable")) {
         _keyCaptureModeEnabled = NO;
     }
@@ -50,11 +56,13 @@ static BOOL setKeyCaptureEventTapEnabled(BOOL enabled, const char *reason) {
 
 + (void)disable {
     _keyCaptureModeEnabled = NO;
+    MFModifierCaptureStateReset(&_modifierCaptureState);
     setKeyCaptureEventTapEnabled(NO, "disable");
 }
 
 + (void)shutdown {
     _keyCaptureModeEnabled = NO;
+    MFModifierCaptureStateReset(&_modifierCaptureState);
     [_keyCaptureEventTapHandle invalidate];
     _keyCaptureEventTapHandle = nil;
 }
@@ -75,7 +83,26 @@ CGEventRef  _Nullable keyCaptureModeCallback(CGEventTapProxy proxy, CGEventType 
     
     NSDictionary *payload;
     
-    if (type == kCGEventKeyDown) {
+    if (type == kCGEventFlagsChanged) {
+
+        CGKeyCode keyCode = (CGKeyCode)CGEventGetIntegerValueField(event, kCGKeyboardEventKeycode);
+        CGKeyCode capturedKeyCode = 0;
+        MFModifierCaptureOutcome outcome = MFModifierCaptureStateHandleFlagsChanged(
+            &_modifierCaptureState, keyCode, flags, &capturedKeyCode);
+        if (outcome == kMFModifierCaptureOutcomeCaptured) {
+            payload = @{
+                @"keyCode": @(capturedKeyCode),
+                @"flags": @(0),
+            };
+            [MFMessagePort sendMessage:@"keyCaptureModeFeedback" withPayload:payload waitForReply:NO];
+            [KeyCaptureMode disable];
+        }
+
+        /// Keep modifier events observable by the main app's local monitor and
+        /// preserve the physical down/up pair in the system event stream.
+        return event;
+
+    } else if (type == kCGEventKeyDown) {
         
         CGKeyCode keyCode = CGEventGetIntegerValueField(event, kCGKeyboardEventKeycode);
         

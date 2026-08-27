@@ -1,6 +1,7 @@
 #import <Foundation/Foundation.h>
 #import <CoreGraphics/CoreGraphics.h>
 #import <Carbon/Carbon.h>
+#import "../../../Shared/Utility/MFKeyboardModifiers.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -42,6 +43,7 @@ NS_INLINE MFKeyboardShortcutEventPlan MFKeyboardShortcutEventPlanMake(CGKeyCode 
 
     MFKeyboardShortcutEventPlan plan = {0};
     CGEventFlags currentFlags = flags & ~syntheticModifierMask;
+    CGEventFlags primaryModifierFlag = MFKeyboardModifierFlagForKeyCode(keyCode);
 
     for (NSUInteger index = 0; index < modifierCount; index++) {
         MFKeyboardShortcutModifier modifier = modifiers[index];
@@ -57,12 +59,12 @@ NS_INLINE MFKeyboardShortcutEventPlan MFKeyboardShortcutEventPlanMake(CGKeyCode 
     plan.steps[plan.count++] = (MFKeyboardShortcutEventStep){
         .keyCode = keyCode,
         .keyDown = YES,
-        .flags = flags,
+        .flags = flags | primaryModifierFlag,
     };
     plan.steps[plan.count++] = (MFKeyboardShortcutEventStep){
         .keyCode = keyCode,
         .keyDown = NO,
-        .flags = flags,
+        .flags = flags & ~primaryModifierFlag,
     };
 
     for (NSInteger index = (NSInteger)modifierCount - 1; index >= 0; index--) {

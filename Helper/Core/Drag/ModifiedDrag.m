@@ -30,6 +30,7 @@
 #import "ModifiedDragOutputTwoFingerSwipe.h"
 #import "ModifiedDragOutputFakeDrag.h"
 #import "ModifiedDragOutputAddMode.h"
+#import "ModifiedDragOutputAction.h"
 
 #import "GlobalEventTapThread.h"
 #import "MFEventTapHandle.h"
@@ -172,9 +173,10 @@ static BOOL setModifiedDragEventTapEnabled(BOOL enabled, const char *reason) {
         
         /// Get type
         MFStringConstant type = effectDict[kMFModifiedDragDictKeyType];
+        MFStringConstant actionType = effectDict[kMFActionDictKeyType];
         
         /// Init static parts of `_drag`
-        _drag.type = type;
+        _drag.type = type ?: actionType;
         _drag.effectDict = effectDict;
         _drag.usageThreshold = GeneralConfig.dragActivationThreshold;
 //        _drag.initialModifiers = modifiers;
@@ -189,8 +191,12 @@ static BOOL setModifiedDragEventTapEnabled(BOOL enabled, const char *reason) {
             p = (id<ModifiedDragOutputPlugin>)ModifiedDragOutputFakeDrag.class;
         } else if ([type isEqualToString:kMFModifiedDragTypeAddModeFeedback]) {
             p = (id<ModifiedDragOutputPlugin>)ModifiedDragOutputAddMode.class;
+        } else if ([ModifiedDragOutputAction canHandleEffectDict:effectDict]) {
+            p = (id<ModifiedDragOutputPlugin>)ModifiedDragOutputAction.class;
         } else {
-            assert(false);
+            DDLogError("ModifiedDrag: refusing malformed or unsupported effect dictionary: %@", effectDict);
+            _drag.activationState = kMFModifiedInputActivationStateNone;
+            return;
         }
         
         /// Link with plugin

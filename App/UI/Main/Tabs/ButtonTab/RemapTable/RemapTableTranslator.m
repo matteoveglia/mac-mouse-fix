@@ -32,6 +32,28 @@
 #pragma mark (Pseudo) Properties
 
 NSTableView *_tableView;
+
+static NSAttributedString *getShortcutString(NSDictionary *effectDict, BOOL isKeyShortcut);
+
+static void insertSelectedShortcutEntry(NSMutableArray *effectsTable, NSDictionary *selectedEffect) {
+    NSIndexSet *keyCaptureIndexes = [effectsTable indexesOfObjectsPassingTest:^BOOL(NSDictionary *entry, NSUInteger idx, BOOL *stop) {
+        return [entry[@"keyCaptureEntry"] isEqual:@YES];
+    }];
+    assert(keyCaptureIndexes.count == 1);
+
+    BOOL isKeyShortcut = [selectedEffect[kMFActionDictKeyType] isEqual:kMFActionDictTypeKeyboardShortcut];
+    BOOL isSystemEvent = [selectedEffect[kMFActionDictKeyType] isEqual:kMFActionDictTypeSystemDefinedEvent];
+    if (!isKeyShortcut && !isSystemEvent) return;
+
+    NSAttributedString *shortcutString = getShortcutString(selectedEffect, isKeyShortcut);
+    NSString *shortcutStringRaw = shortcutString.stringWithAttachmentDescriptions;
+    [effectsTable insertObject:@{
+        @"uiAttributed": shortcutString,
+        @"tool": stringf(MFLocalizedString(@"effect.shortcut.hint", @""), shortcutStringRaw),
+        @"dict": selectedEffect,
+        @"indentation": @1,
+    } atIndex:keyCaptureIndexes.firstIndex + 1];
+}
 //
 + (void)initializeWithTableView:(NSTableView *)tableView {
     _tableView = tableView;
@@ -108,8 +130,8 @@ static NSArray *getScrollEffectsTable() {
     ];
     return scrollEffectsTable;
 }
-static NSArray *getDragEffectsTable() {
-    NSArray *dragEffectsTable = @[
+static NSArray *getDragEffectsTable(NSDictionary *rowDict) {
+    NSMutableArray *dragEffectsTable = @[
         @{
             @"ui": MFLocalizedString(@"drag-effect.dock-swipe", @""),
             @"tool": MFLocalizedString(@"drag-effect.dock-swipe.hint", @"") ,
@@ -124,6 +146,12 @@ static NSArray *getDragEffectsTable() {
                   kMFModifiedDragDictKeyType: kMFModifiedDragTypeTwoFingerSwipe,
             }
         },
+        separatorEffectsTableEntry(),
+        @{
+            @"ui": MFLocalizedString(@"effect.record-shortcut", @""),
+            @"tool": MFLocalizedString(@"effect.record-shortcut.hint", @""),
+            @"keyCaptureEntry": @YES,
+        },
 //        separatorEffectsTableEntry(),
 //        @{
 ////          @"ui": [NSString stringWithFormat:@"%@ Click and Drag", [UIStrings getButtonString:3]],
@@ -135,7 +163,8 @@ static NSArray *getDragEffectsTable() {
 //                  kMFModifiedDragDictKeyType: kMFModifiedDragTypeFakeDrag,
 //                  kMFModifiedDragDictKeyFakeDragVariantButtonNumber: @3,
 //        }},
-    ];
+    ].mutableCopy;
+    insertSelectedShortcutEntry(dragEffectsTable, rowDict[kMFRemapsKeyEffect]);
     return dragEffectsTable;
 }
 static NSArray *getOneShotEffectsTable(NSDictionary *rowDict) {
@@ -310,41 +339,14 @@ static NSArray *getOneShotEffectsTable(NSDictionary *rowDict) {
         }
     }
     
-    /// Insert entry for keyboard shortcut effect
-    
-    /// Get keycapture index
-    NSIndexSet *keyCaptureIndexes = [oneShotEffectsTable indexesOfObjectsPassingTest:^BOOL(NSDictionary * _Nonnull obj, NSUInteger idx, BOOL * _Nonnull stop) {
-        return [obj[@"keyCaptureEntry"] isEqual:@YES];
-    }];
-    assert(keyCaptureIndexes.count == 1);
-    NSUInteger keyCaptureIndex = keyCaptureIndexes.firstIndex;
-    
-    /// Insert entry for keyboard shortcut effect or systemDefined effect
-    
-    BOOL isKeyShortcut = [selectedEffect[kMFActionDictKeyType] isEqual:kMFActionDictTypeKeyboardShortcut];
-    BOOL isSystemEvent = [selectedEffect[kMFActionDictKeyType] isEqual:kMFActionDictTypeSystemDefinedEvent];
-    
-    if (isKeyShortcut || isSystemEvent) {
-        
-        /// Get index for new entry (right after keyCaptureEntry)
-        NSUInteger shortcutIndex = keyCaptureIndex + 1;
-        
-        /// Get  strings
-        
-        NSAttributedString *shortcutString = getShortcutString(selectedEffect, isKeyShortcut);
-
-        NSString *shortcutStringRaw = [shortcutString stringWithAttachmentDescriptions];
-        
-        /// Create and insert new entry
-        [oneShotEffectsTable insertObject:@{
-            @"uiAttributed": shortcutString,
-            @"tool": stringf(MFLocalizedString(@"effect.shortcut.hint", @""), shortcutStringRaw),
-            @"dict": selectedEffect,
-            @"indentation": @1,
-        } atIndex:shortcutIndex];
-    }
+    insertSelectedShortcutEntry(oneShotEffectsTable, selectedEffect);
     
     /// Insert hidden submenu for  apple specific keys
+
+    NSUInteger keyCaptureIndex = [oneShotEffectsTable indexOfObjectPassingTest:^BOOL(NSDictionary *entry, NSUInteger idx, BOOL *stop) {
+        return [entry[@"keyCaptureEntry"] isEqual:@YES];
+    }];
+    assert(keyCaptureIndex != NSNotFound);
     
     int separator = -1;
     
@@ -466,7 +468,7 @@ static NSAttributedString *getShortcutString(NSDictionary *effectDict, BOOL isKe
 //        NSDictionary *buttonTriggerDict = (NSDictionary *)triggerValue;
         effectsTable = getOneShotEffectsTable(rowDict);
     } else if ([triggerType isEqualToString:@"drag"]) {
-        effectsTable = getDragEffectsTable();
+        effectsTable = getDragEffectsTable(rowDict);
     } else if ([triggerType isEqualToString:@"scroll"]) {
         effectsTable = getScrollEffectsTable();
     } else {

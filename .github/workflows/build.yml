@@ -71,6 +71,14 @@ jobs:
             -o "$RUNNER_TEMP/input-capture-policy-tests"
           "$RUNNER_TEMP/input-capture-policy-tests"
 
+          xcrun clang \
+            -I Helper/Core/Drag/Action \
+            -Werror \
+            Helper/Core/Drag/Action/MFModifiedDragActionPlan.m \
+            Tests/MFModifiedDragActionPlanTests.m \
+            -o "$RUNNER_TEMP/modified-drag-action-plan-tests"
+          "$RUNNER_TEMP/modified-drag-action-plan-tests"
+
           xcrun swiftc \
             Helper/Core/Buttons/ButtonActionLocation.swift \
             Tests/ButtonActionLocationTests.swift \

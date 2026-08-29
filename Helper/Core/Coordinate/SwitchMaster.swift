@@ -502,10 +502,15 @@ import ReactiveSwift
         }
         
         var priority = kMFModifierPriorityUnused
+        let addModeIsEnabled = Remap.addModeIsEnabled
+        let scrollFeatureIsEnabled = InputCapturePolicy.featureIsEnabled(
+            killSwitch: scrollKillSwitch, addModeIsEnabled: addModeIsEnabled)
+        let buttonFeatureIsEnabled = InputCapturePolicy.featureIsEnabled(
+            killSwitch: buttonKillSwitch, addModeIsEnabled: addModeIsEnabled)
         
-        let someKbModReallyModifiesScroll   = somekbModModifiesScroll             && hasScrollInputSource          && !scrollKillSwitch
+        let someKbModReallyModifiesScroll   = somekbModModifiesScroll             && hasScrollInputSource          && scrollFeatureIsEnabled
         let someKbModReallyModifiesPointing = somekbModModifiesPointing           && hasPointingInputSource        && true
-        let someKbModReallyModifiesButtons  = somekbModModifiesButtonOnSomeDevice && hasButtonInputSource           && !buttonKillSwitch
+        let someKbModReallyModifiesButtons  = somekbModModifiesButtonOnSomeDevice && hasButtonInputSource           && buttonFeatureIsEnabled
         
         if someKbModReallyModifiesScroll || someKbModReallyModifiesPointing || someKbModReallyModifiesButtons {
             
@@ -529,10 +534,15 @@ import ReactiveSwift
         ///     Add a `if isLockedDown || !userIsActive` guard here like for all the other togglers
         
         var priority = kMFModifierPriorityUnused
+        let addModeIsEnabled = Remap.addModeIsEnabled
+        let scrollFeatureIsEnabled = InputCapturePolicy.featureIsEnabled(
+            killSwitch: scrollKillSwitch, addModeIsEnabled: addModeIsEnabled)
+        let buttonFeatureIsEnabled = InputCapturePolicy.featureIsEnabled(
+            killSwitch: buttonKillSwitch, addModeIsEnabled: addModeIsEnabled)
         
-        let someBtnReallyModifiesScroll      = someButtonModifiesScroll             && hasScrollInputSource       && !scrollKillSwitch      ;
+        let someBtnReallyModifiesScroll      = someButtonModifiesScroll             && hasScrollInputSource       && scrollFeatureIsEnabled ;
         let someBtnReallyModifiesPointing    = someButtonModifiesPointing           && hasPointingInputSource     && true                   ;
-        let someBtnReallyModifiesButtons     = someButtonModifiesButtonOnSomeDevice && hasButtonInputSource      && !buttonKillSwitch      ; /// `!buttonKillSwitch` is redundant here ([Mar 2025]: Why?), but makes it more readable? || [Mar 2025]: someDeviceHasUsableButtons might also be redundant, because someButtonModifiesButtonOnSomeDevice might already capture that.
+        let someBtnReallyModifiesButtons     = someButtonModifiesButtonOnSomeDevice && hasButtonInputSource      && buttonFeatureIsEnabled ;
         
         if someBtnReallyModifiesScroll || someBtnReallyModifiesPointing || someBtnReallyModifiesButtons {
             
@@ -554,7 +564,12 @@ import ReactiveSwift
 
         DDLogInfo("SwitchMaster: scroll tap decision active=\(userIsActive ? 1 : 0) locked=\(isLockedDown ? 1 : 0) kill=\(scrollKillSwitch ? 1 : 0) hasSource=\(hasScrollInputSource ? 1 : 0) default=\(defaultModifiesScroll ? 1 : 0) current=\(currentModificationModifiesScroll ? 1 : 0) receiving=\(Scroll.isReceiving() ? 1 : 0)")
         
-        if isLockedDown || !userIsActive || scrollKillSwitch {
+        if !InputCapturePolicy.captureIsAllowed(
+            userIsActive: userIsActive,
+            isLockedDown: isLockedDown,
+            killSwitch: scrollKillSwitch,
+            addModeIsEnabled: Remap.addModeIsEnabled
+        ) {
             Scroll.stopReceiving()
             return
         }
@@ -568,7 +583,12 @@ import ReactiveSwift
     
     private func toggleButtonTap() {
     
-        if isLockedDown || !userIsActive || buttonKillSwitch {
+        if !InputCapturePolicy.captureIsAllowed(
+            userIsActive: userIsActive,
+            isLockedDown: isLockedDown,
+            killSwitch: buttonKillSwitch,
+            addModeIsEnabled: Remap.addModeIsEnabled
+        ) {
             ButtonInputReceiver.stop()
             return
         }

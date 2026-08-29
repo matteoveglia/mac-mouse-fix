@@ -30,6 +30,7 @@
 		4F1708BE2E51D60400945CF3 /* MFSemaphore.m in Sources */ = {isa = PBXBuildFile; fileRef = 4F1B418E2D49960E00026C94 /* MFSemaphore.m */; };
 		4F1713532E6201FE00FFE14A /* storyboard-notes.md in Resources */ = {isa = PBXBuildFile; fileRef = 4F1713522E6201FE00FFE14A /* storyboard-notes.md */; };
 		4F17D2E1292A635200EB07CA /* SwitchMaster.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F17D2E0292A635200EB07CA /* SwitchMaster.swift */; };
+		C0D307010000000000000001 /* InputCapturePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0D307000000000000000001 /* InputCapturePolicy.swift */; };
 		4F1AFE972670EBA900ECA424 /* DragCurve.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F1AFE962670EBA900ECA424 /* DragCurve.swift */; };
 		4F1B418F2D49960E00026C94 /* MFSemaphore.m in Sources */ = {isa = PBXBuildFile; fileRef = 4F1B418E2D49960E00026C94 /* MFSemaphore.m */; };
 		4F1B41902D49960E00026C94 /* MFSemaphore.m in Sources */ = {isa = PBXBuildFile; fileRef = 4F1B418E2D49960E00026C94 /* MFSemaphore.m */; };
@@ -530,6 +531,7 @@
 		4F1667EE2C6A6EA0009E4924 /* MainMenu.xib */ = {isa = PBXFileReference; lastKnownFileType = file.xib; path = MainMenu.xib; sourceTree = "<group>"; };
 		4F1713522E6201FE00FFE14A /* storyboard-notes.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "storyboard-notes.md"; sourceTree = "<group>"; };
 		4F17D2E0292A635200EB07CA /* SwitchMaster.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwitchMaster.swift; sourceTree = "<group>"; };
+		C0D307000000000000000001 /* InputCapturePolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InputCapturePolicy.swift; sourceTree = "<group>"; };
 		4F18466A2C53AD6D00D5E835 /* Automatic Localization Screenshots.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "Automatic Localization Screenshots.md"; sourceTree = "<group>"; };
 		4F18A85727BF6E0200A5703B /* IOHIDEvent-Reconstructed.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "IOHIDEvent-Reconstructed.h"; sourceTree = "<group>"; };
 		4F19F65E2906BB98007DE4CD /* ConfigReadme.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = ConfigReadme.md; sourceTree = "<group>"; };
@@ -7376,6 +7378,7 @@
 		4FD9820C292A9BEE00645FE3 /* Coordinate */ = {
 			isa = PBXGroup;
 			children = (
+				C0D307000000000000000001 /* InputCapturePolicy.swift */,
 				4F17D2E0292A635200EB07CA /* SwitchMaster.swift */,
 				4F02C71C2899448900ED0AA8 /* OutputCoordinator.swift */,
 				4F02C7202899453200ED0AA8 /* OutputCoordinator.h */,
@@ -8622,6 +8625,7 @@
 				4FF6668F25F2C93A00689B77 /* SmoothScroll_old_.m in Sources */,
 				4F70ECB7267E810900325A76 /* IOUtility.m in Sources */,
 				4F17D2E1292A635200EB07CA /* SwitchMaster.swift in Sources */,
+				C0D307010000000000000001 /* InputCapturePolicy.swift in Sources */,
 				4FD0A71127B295F600FFCD12 /* GeneralConfig.swift in Sources */,
 				4F1D58192881D880002EB119 /* CombinedLinearCurve.swift in Sources */,
 				4F97E002298732E500012BAC /* LocalizationUtility.m in Sources */,

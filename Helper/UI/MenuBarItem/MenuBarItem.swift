@@ -107,19 +107,6 @@ import Foundation
             
             instance?.buttonsEnabledItem.state = !buttonsKilled ? .on : .off
             instance?.scrollEnabledItem.state = !scrollKilled ? .on : .off
-            
-            return
-            
-        } else {
-            
-            /// Disable all settings from the menuItem, if the menuItem is disabled
-            /// Need to do the killed check to prevent infinite loops. (Not sure if true anymore). This would be easier if we just used the reactive ConfigValue instead.
-            
-            if (buttonsKilled || scrollKilled) {
-                setConfig("General.scrollKillSwitch", false as NSObject)
-                setConfig("General.buttonKillSwitch", false as NSObject)
-                commitConfig()
-            }
         }
     }
     

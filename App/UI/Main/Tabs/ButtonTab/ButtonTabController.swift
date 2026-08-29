@@ -346,26 +346,8 @@ import Foundation
             
         })
         
-        ///
-        /// Turn off killswitch
-        ///
-        
-        /// We do the exact same thing in the scrollTab
-        
-        let buttonsAreKilled = config("General.buttonKillSwitch") as! Bool
-        let scrollIsKilled = config("General.scrollKillSwitch") as! Bool
-        
-        if buttonsAreKilled || scrollIsKilled {
-            
-            /// Turn off killSwitch
-            ///     NOTE: We also turn off the scrollKillSwitch because otherwise we can't record click and scroll in addMode.
-            setConfig("General.buttonKillSwitch", false as NSObject)
-            setConfig("General.scrollKillSwitch", false as NSObject)
-            commitConfig()
-            
-            /// Show user feedback
-            Toasts.showReviveToast(showButtons: buttonsAreKilled, showScroll: scrollIsKilled)
-        }
+        /// The menu-bar kill switches are persistent user choices. Opening the
+        /// settings window must not silently re-enable either feature.
     }
     
     //

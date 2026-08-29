@@ -60,6 +60,18 @@ jobs:
           "$RUNNER_TEMP/drag-activation-threshold-tests"
 
           xcrun swiftc \
+            -parse-as-library \
+            Tests/MenuBarPersistenceTests.swift \
+            -o "$RUNNER_TEMP/menu-bar-persistence-tests"
+          "$RUNNER_TEMP/menu-bar-persistence-tests"
+
+          xcrun swiftc \
+            Helper/Core/Coordinate/InputCapturePolicy.swift \
+            Tests/InputCapturePolicyTests.swift \
+            -o "$RUNNER_TEMP/input-capture-policy-tests"
+          "$RUNNER_TEMP/input-capture-policy-tests"
+
+          xcrun swiftc \
             Helper/Core/Buttons/ButtonActionLocation.swift \
             Tests/ButtonActionLocationTests.swift \
             -o "$RUNNER_TEMP/button-action-location-tests"

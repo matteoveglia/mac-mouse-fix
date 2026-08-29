@@ -71,6 +71,12 @@ jobs:
             -o "$RUNNER_TEMP/input-capture-policy-tests"
           "$RUNNER_TEMP/input-capture-policy-tests"
 
+          xcrun swiftc \
+            Shared/License/LicensePersistencePolicy.swift \
+            Tests/LicensePersistencePolicyTests.swift \
+            -o "$RUNNER_TEMP/license-persistence-policy-tests"
+          "$RUNNER_TEMP/license-persistence-policy-tests"
+
           xcrun clang \
             -I Helper/Core/Drag/Action \
             -Werror \

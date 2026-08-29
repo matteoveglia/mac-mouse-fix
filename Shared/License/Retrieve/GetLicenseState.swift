@@ -52,21 +52,63 @@ import CryptoKit
         
         checkLicenseKeyValidity: do {
             
-            /// Get key
-            ///     from secure storage
-            
-            guard let key = SecureStorage.get("License.key") as? String else {
-                    
-                /// No key found in secure storage
-                
-                /// Delete cache
-                deleteLicenseStateFromCache(commitConfig: true) /// `<-` See docs in here for discussion.
-                
-                /// Return unlicensed
-                ///     Note: Perhaps we should also do this if the licenseKey is an emptyString?
+            /// Read the key without treating a Keychain error or item-not-found
+            /// response as sufficient evidence to erase an existing paid cache.
+
+            let keyLookup = SecureStorage.lookup("License.key")
+            let key: String?
+            let lookupState: MFLicenseKeyLookupState
+            switch keyLookup {
+            case .value(let value):
+                if let storedKey = value as? String {
+                    if storedKey.isEmpty {
+                        key = nil
+                        lookupState = .missing
+                    } else {
+                        key = storedKey
+                        lookupState = .found
+                    }
+                } else {
+                    key = nil
+                    lookupState = .unavailable
+                    DDLogError("GetLicenseState: Stored license key has an invalid type or is empty; preserving the last cached state.")
+                }
+            case .missing:
+                key = nil
+                lookupState = .missing
+            case .unavailable(let error):
+                key = nil
+                lookupState = .unavailable
+                DDLogError("GetLicenseState: Keychain unavailable while reading the license key; preserving the last cached state. Error: \(error)")
+            }
+
+            let unvalidatedCachedState = lookupState != .found
+                ? self.licenseStateFromCache(licenseKey: "", deviceUID: nil, enableOfflineValidation: false)
+                : nil
+            let resolution = MFLicensePersistencePolicy.startupResolution(
+                keyLookup: lookupState,
+                cachedStateIsAvailable: unvalidatedCachedState != nil)
+
+            switch resolution {
+            case .validateStoredKey:
+                break
+            case .clearCacheAndUseUnlicensed:
+                deleteLicenseStateFromCache(commitConfig: true)
                 result = MFLicenseState(isLicensed: false, freshness: kMFValueFreshnessFresh, licenseTypeInfo: MFLicenseTypeInfoNotLicensed())
-                DDLogInfo("GetLicenseState: No license key was found in the secureStorage.\n(This is now just a log message. Would formerly return NSError with code kMFLicenseErrorCodeKeyNotFound)") /// This shouldn't be an error log as this is the normal case if the user hasn't entered a licenseKey e.g. during the trial period.
+                DDLogInfo("GetLicenseState: No license key was found in secure storage.")
                 break checkLicenseKeyValidity
+            case .useCachedState:
+                result = unvalidatedCachedState
+                DDLogWarn("GetLicenseState: Using the last cached license state because the stored key could not be read.")
+                break checkLicenseKeyValidity
+            case .useFallbackWithoutClearingCache:
+                result = self.licenseStateFromFallback
+                DDLogWarn("GetLicenseState: Secure storage and the cached license state are unavailable; using the fallback without clearing persisted license data.")
+                break checkLicenseKeyValidity
+            }
+
+            guard let key else {
+                fatalError("License persistence policy selected key validation without a usable key.")
             }
             
             /// 1. Ask cache
@@ -229,6 +271,10 @@ import CryptoKit
         removeFromConfig("License.licenseStateCacheHash")
         
         if doCommitConfig { commitConfig() }
+    }
+
+    static func handleExplicitLicenseDeactivation() {
+        deleteLicenseStateFromCache(commitConfig: true)
     }
     
     private static func storeLicenseStateInCache(_ newValue: MFLicenseState, licenseKey: String, deviceUID: Data?) {

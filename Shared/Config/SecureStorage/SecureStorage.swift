@@ -36,6 +36,12 @@
 import Foundation
 
 @objc class SecureStorage: NSObject {
+
+    enum LookupResult {
+        case value(Any)
+        case missing
+        case unavailable(Error)
+    }
     
     /// Surface lvl 2
     
@@ -55,21 +61,36 @@ import Foundation
     /// Surface
     
     @objc static func get(_ keyPath: String) -> Any? {
-        
+        switch lookup(keyPath) {
+        case .value(let value):
+            return value
+        case .missing, .unavailable:
+            return nil
+        }
+    }
+
+    static func lookup(_ keyPath: String) -> LookupResult {
         do {
             let dict = try readDict()
-            return dict.object(forCoolKeyPath: keyPath)
-            
+            guard let value = dict.object(forCoolKeyPath: keyPath) else {
+                return .missing
+            }
+            return .value(value)
+        } catch KeychainError.itemNotFound {
+            return .missing
         } catch {
-            return nil
+            DDLogError("SecureStorage - Failed to read keyPath: \(keyPath). Error: \(error)")
+            return .unavailable(error)
         }
     }
     
     @objc static func set(_ keyPath: String, value: Any?) {
-        
+        var pendingDict: NSMutableDictionary?
+
         do {
             let dict = try readDict().mutableCopy() as! NSMutableDictionary
             dict.setObject((value as! NSObject?), forCoolKeyPath: keyPath)
+            pendingDict = dict
             
             do {
                 try replaceDict(dict)
@@ -97,16 +118,23 @@ import Foundation
             synchronizable = false
 
             do {
-                var freshDict: NSMutableDictionary = [:]
-                if let read = try? readDict(), let mutable = read.mutableCopy() as? NSMutableDictionary {
-                    freshDict = mutable
+                let recoveryDict: NSMutableDictionary
+                if let pendingDict {
+                    recoveryDict = pendingDict
+                } else if let keychainError = error as? KeychainError,
+                          case .itemNotFound = keychainError {
+                    recoveryDict = [:]
+                } else {
+                    DDLogError("SecureStorage - Refusing to replace unreadable storage with a partial dictionary. Value for '\(keyPath)' was NOT stored.")
+                    synchronizable = true
+                    return
                 }
-                freshDict.setObject((value as! NSObject?), forCoolKeyPath: keyPath)
+                recoveryDict.setObject((value as! NSObject?), forCoolKeyPath: keyPath)
 
                 do {
-                    try replaceDict(freshDict)
+                    try replaceDict(recoveryDict)
                 } catch KeychainError.itemNotFound {
-                    try createItem(dict: freshDict)
+                    try createItem(dict: recoveryDict)
                 }
 
                 DDLogInfo("SecureStorage - Recovered using a local (non-synchronizable) item. iCloud syncing of the secure storage is disabled until relaunch.")
@@ -187,8 +215,26 @@ import Foundation
     }
     
     private static func readItem() throws -> CFData {
-        
-        var query = baseQuery()
+        if synchronizable {
+            /// Once a local fallback item exists, keep using it on later
+            /// launches. Otherwise a temporarily recovered synchronized item
+            /// could hide a newer license or trial update written locally.
+            do {
+                let data = try readItem(synchronizable: false)
+                synchronizable = false
+                DDLogInfo("SecureStorage - Reusing the local fallback item.")
+                return data
+            } catch {
+                /// No usable local fallback. Continue with the synchronized
+                /// item and preserve its real error for the caller.
+            }
+        }
+
+        return try readItem(synchronizable: synchronizable)
+    }
+
+    private static func readItem(synchronizable: Bool) throws -> CFData {
+        var query = baseQuery(synchronizable: synchronizable)
         query[kSecReturnData as String] = kCFBooleanTrue!
         
         var item: CFTypeRef?
@@ -212,10 +258,14 @@ import Foundation
     private static let label = "com.nuebling.mac-mouse-fix.secure-storage" /// "MFSecureStorage"
     
     /// Whether we're using a synchronizable (iCloud-synced) keychain item.
-    /// Gets flipped to false as a fallback when interacting with the synchronizable item fails. See `set()`.
+    /// Gets flipped to false as a fallback when interacting with the synchronizable item fails. A local fallback item is preferred on later launches so its writes cannot be stranded behind an older synchronized item. See `set()`.
     private static var synchronizable = true
 
     private static func baseQuery() -> [String: Any] {
+        baseQuery(synchronizable: synchronizable)
+    }
+
+    private static func baseQuery(synchronizable: Bool) -> [String: Any] {
         
         var query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,

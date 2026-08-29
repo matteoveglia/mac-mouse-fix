@@ -250,6 +250,8 @@
 		4FB8B2962CCDB94F00A5A580 /* MFPlistDecoder.m in Sources */ = {isa = PBXBuildFile; fileRef = 4FB8B2942CCDB94F00A5A580 /* MFPlistDecoder.m */; };
 		4FB8B2982CCEBADA00A5A580 /* GetLicenseState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FB8B2972CCEBAD300A5A580 /* GetLicenseState.swift */; };
 		4FB8B2992CCEBADA00A5A580 /* GetLicenseState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FB8B2972CCEBAD300A5A580 /* GetLicenseState.swift */; };
+		C0D309020000000000000002 /* LicensePersistencePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0D309010000000000000001 /* LicensePersistencePolicy.swift */; };
+		C0D309030000000000000003 /* LicensePersistencePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0D309010000000000000001 /* LicensePersistencePolicy.swift */; };
 		4FB8B29B2CCEBAEB00A5A580 /* GetLicenseConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FB8B29A2CCEBAE100A5A580 /* GetLicenseConfig.swift */; };
 		4FB8B29C2CCEBAEB00A5A580 /* GetLicenseConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FB8B29A2CCEBAE100A5A580 /* GetLicenseConfig.swift */; };
 		4FB8B29E2CCEBB1700A5A580 /* GetTrialState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FB8B29D2CCEBB1000A5A580 /* GetTrialState.swift */; };
@@ -2326,6 +2328,7 @@
 		4FB8B2932CCDB94F00A5A580 /* MFPlistDecoder.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = MFPlistDecoder.h; sourceTree = "<group>"; };
 		4FB8B2942CCDB94F00A5A580 /* MFPlistDecoder.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = MFPlistDecoder.m; sourceTree = "<group>"; };
 		4FB8B2972CCEBAD300A5A580 /* GetLicenseState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GetLicenseState.swift; sourceTree = "<group>"; };
+		C0D309010000000000000001 /* LicensePersistencePolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LicensePersistencePolicy.swift; sourceTree = "<group>"; };
 		4FB8B29A2CCEBAE100A5A580 /* GetLicenseConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GetLicenseConfig.swift; sourceTree = "<group>"; };
 		4FB8B29D2CCEBB1000A5A580 /* GetTrialState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GetTrialState.swift; sourceTree = "<group>"; };
 		4FB8B2A12CCEBC4900A5A580 /* APIRequests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIRequests.swift; sourceTree = "<group>"; };
@@ -7417,6 +7420,7 @@
 				4FDE757D28B0E66900662314 /* License.h */,
 				4FF1DC792CC1130700A839AB /* License.m */,
 				4FDE759928B1401400662314 /* License.swift */,
+				C0D309010000000000000001 /* LicensePersistencePolicy.swift */,
 				4FB8B2A02CCEBB9100A5A580 /* Retrieve */,
 				4FDE759D28B174E700662314 /* TrialCounter.swift */,
 				4FFA4E3428B795F30062A1FE /* LicenseUtility.swift */,
@@ -8545,6 +8549,7 @@
 				4FA625562DA97CC9004F46DA /* TreeNode.m in Sources */,
 				4F12952028D2D5E1009A49AB /* NSTextField+Extentions.swift in Sources */,
 				4FB8B2992CCEBADA00A5A580 /* GetLicenseState.swift in Sources */,
+				C0D309020000000000000002 /* LicensePersistencePolicy.swift in Sources */,
 				4F5170162CBFD75C0018D388 /* MFDataClassImpls.m in Sources */,
 				4F09284528B8E82B00BDC2FF /* LicenseSheetController.swift in Sources */,
 				4F0DAB552EFF4E2100129041 /* RemapTableCellView.m in Sources */,
@@ -8778,6 +8783,7 @@
 				4FF8C8A32895AACB007EC31F /* Buttons.swift in Sources */,
 				C0DE00000000000000000002 /* ButtonActionLocation.swift in Sources */,
 				4FB8B2982CCEBADA00A5A580 /* GetLicenseState.swift in Sources */,
+				C0D309030000000000000003 /* LicensePersistencePolicy.swift in Sources */,
 				4FF0255427B007FC00923107 /* ModifiedDragOutputFakeDrag.m in Sources */,
 				4F7F47C528A5A01600290BBD /* ReactiveConfig.swift in Sources */,
 				4FF8C89A28955491007EC31F /* ClickCycle.swift in Sources */,

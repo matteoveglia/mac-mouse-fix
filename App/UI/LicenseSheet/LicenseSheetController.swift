@@ -63,6 +63,7 @@ import Cocoa
             
             /// Delete key
             SecureStorage.delete("License.key")
+            GetLicenseState.handleExplicitLicenseDeactivation()
             
             /// Close sheet
             LicenseSheetController.remove()

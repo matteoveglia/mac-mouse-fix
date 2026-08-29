@@ -113,9 +113,6 @@ static BOOL setModifiedDragEventTapEnabled(BOOL enabled, const char *reason) {
     dispatch_queue_attr_t attr = dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_USER_INTERACTIVE, -1);
     _drag.queue = dispatch_queue_create("com.nuebling.mac-mouse-fix.helper.modified-drag", attr);
     
-    /// Set usage threshold
-    _drag.usageThreshold = 7; // 20, 5
-    
     /// Create mouse moved callback
     if (_drag.eventTap == NULL) {
         
@@ -179,6 +176,7 @@ static BOOL setModifiedDragEventTapEnabled(BOOL enabled, const char *reason) {
         /// Init static parts of `_drag`
         _drag.type = type;
         _drag.effectDict = effectDict;
+        _drag.usageThreshold = GeneralConfig.dragActivationThreshold;
 //        _drag.initialModifiers = modifiers;
         _drag.initTime = CACurrentMediaTime();
         

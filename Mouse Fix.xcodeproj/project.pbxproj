@@ -434,6 +434,8 @@
 		4FFE2895291B35AA0058ABE0 /* (null) in Sources */ = {isa = PBXBuildFile; };
 		C0D301010000000000000001 /* ApplicationPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0D300010000000000000001 /* ApplicationPolicy.swift */; };
 		C0D301020000000000000001 /* ApplicationPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0D300010000000000000001 /* ApplicationPolicy.swift */; };
+		C0D306010000000000000001 /* DragActivationThreshold.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0D306000000000000000001 /* DragActivationThreshold.swift */; };
+		C0D306020000000000000001 /* DragActivationThreshold.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0D306000000000000000001 /* DragActivationThreshold.swift */; };
 		C0D301030000000000000001 /* MFHIDPPTypes.m in Sources */ = {isa = PBXBuildFile; fileRef = C0D300040000000000000001 /* MFHIDPPTypes.m */; };
 		C0D301040000000000000001 /* MFHIDPPClient.m in Sources */ = {isa = PBXBuildFile; fileRef = C0D300070000000000000001 /* MFHIDPPClient.m */; };
 /* End PBXBuildFile section */
@@ -2609,6 +2611,7 @@
 		4FFBC5A6266977CA001D389B /* Mac Mouse Fix Helper-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Mac Mouse Fix Helper-Bridging-Header.h"; sourceTree = "<group>"; };
 		4FFBC5A7266977CA001D389B /* DoubleExponentialSmoother.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DoubleExponentialSmoother.swift; sourceTree = "<group>"; };
 		C0D300010000000000000001 /* ApplicationPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplicationPolicy.swift; sourceTree = "<group>"; };
+		C0D306000000000000000001 /* DragActivationThreshold.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DragActivationThreshold.swift; sourceTree = "<group>"; };
 		C0D300030000000000000001 /* MFHIDPPTypes.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = MFHIDPPTypes.h; sourceTree = "<group>"; };
 		C0D300040000000000000001 /* MFHIDPPTypes.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = MFHIDPPTypes.m; sourceTree = "<group>"; };
 		C0D300050000000000000001 /* MFHIDPPTransport.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = MFHIDPPTransport.h; sourceTree = "<group>"; };
@@ -6760,6 +6763,7 @@
 			isa = PBXGroup;
 			children = (
 				C0D300010000000000000001 /* ApplicationPolicy.swift */,
+				C0D306000000000000000001 /* DragActivationThreshold.swift */,
 				4F9E59962672A67E004E75F7 /* default_config.plist */,
 				4F19F65E2906BB98007DE4CD /* ConfigReadme.md */,
 				4FF6660D25F2C93A00689B77 /* Config.h */,
@@ -8399,6 +8403,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				C0D301010000000000000001 /* ApplicationPolicy.swift in Sources */,
+				C0D306010000000000000001 /* DragActivationThreshold.swift in Sources */,
 				4F909D2828A0C3D2009349A2 /* ResizingTabWindow.swift in Sources */,
 				4FA40CF728A0CCCA00499E53 /* Curve.swift in Sources */,
 				4F1B41A52D4BACBA00026C94 /* NSData+Additions.m in Sources */,
@@ -8577,6 +8582,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				C0D301020000000000000001 /* ApplicationPolicy.swift in Sources */,
+				C0D306020000000000000001 /* DragActivationThreshold.swift in Sources */,
 				C0D301030000000000000001 /* MFHIDPPTypes.m in Sources */,
 				C0D301040000000000000001 /* MFHIDPPClient.m in Sources */,
 				4FB8B29F2CCEBB1700A5A580 /* GetTrialState.swift in Sources */,

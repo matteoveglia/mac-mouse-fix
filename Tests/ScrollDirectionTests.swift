@@ -40,8 +40,8 @@ private enum ScrollDirectionTestMain {
             NSLog("FAIL: default config is readable")
             exit(EXIT_FAILURE)
         }
-        check((constants["configVersion"] as? NSNumber)?.intValue == 28,
-              "default config uses the axis-direction migration version", &failures)
+        check((constants["configVersion"] as? NSNumber)?.intValue == 29,
+              "default config includes all migrations after axis direction", &failures)
         check(scroll["reverseDirection"] == nil,
               "default config no longer declares the shared reverse-direction key", &failures)
         check(scroll["reverseDirectionVertical"] is NSNumber,

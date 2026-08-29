@@ -18,11 +18,14 @@ class ButtonOptionsViewController: NSViewController {
     static var instance: ButtonOptionsViewController? = nil
     
     var lockPointer = ConfigValue<Bool>(configPath: "General.lockPointerDuringDrag")
+    var dragActivationThreshold = ConfigValue<Int>(configPath: "General.dragActivationThreshold")
     
     /// IB outlets & actions
     
     @IBOutlet weak var doneButton: NSButton!
     @IBOutlet weak var lockPointerButton: NSButton!
+    @IBOutlet weak var dragActivationThresholdSlider: NSSlider!
+    @IBOutlet weak var dragActivationThresholdLabel: NSTextField!
         
     @IBAction func done(_ sender: Any) {
         ButtonOptionsViewController.remove()
@@ -35,6 +38,16 @@ class ButtonOptionsViewController: NSViewController {
         
         lockPointerButton.reactive.boolValue <~ lockPointer
         lockPointer <~ lockPointerButton.reactive.boolValues
+
+        dragActivationThresholdSlider.minValue = Double(DragActivationThreshold.minimumValue)
+        dragActivationThresholdSlider.maxValue = Double(DragActivationThreshold.maximumValue)
+        dragActivationThresholdSlider.reactive.doubleValue <~ dragActivationThreshold.producer.map(Double.init)
+        dragActivationThreshold <~ dragActivationThresholdSlider.reactive.doubleValues
+            .map { Int($0.rounded()) }
+            .skipRepeats()
+        dragActivationThreshold.producer.startWithValues { [weak self] value in
+            self?.dragActivationThresholdLabel.stringValue = "\(value) px"
+        }
         
         /// Adjust views for Tahoe
         if #available(macOS 26.0, *) {

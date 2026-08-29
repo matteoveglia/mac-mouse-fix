@@ -54,6 +54,12 @@ jobs:
           "$RUNNER_TEMP/click-cycle-tests"
 
           xcrun swiftc \
+            Shared/Config/DragActivationThreshold.swift \
+            Tests/DragActivationThresholdTests.swift \
+            -o "$RUNNER_TEMP/drag-activation-threshold-tests"
+          "$RUNNER_TEMP/drag-activation-threshold-tests"
+
+          xcrun swiftc \
             Helper/Core/Buttons/ButtonActionLocation.swift \
             Tests/ButtonActionLocationTests.swift \
             -o "$RUNNER_TEMP/button-action-location-tests"

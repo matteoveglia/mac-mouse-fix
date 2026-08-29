@@ -70,6 +70,8 @@
 		<true/>
 		<key>lockPointerDuringDrag</key>
 		<false/>
+		<key>dragActivationThreshold</key>
+		<integer>7</integer>
 	</dict>
 	<key>Pointer</key>
 	<dict>
@@ -98,7 +100,7 @@
 	<key>Constants</key>
 	<dict>
 		<key>configVersion</key>
-		<integer>28</integer>
+		<integer>29</integer>
 		<key>defaultRemaps</key>
 		<dict>
 			<key>threeButtons</key>

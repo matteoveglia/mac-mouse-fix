@@ -682,6 +682,21 @@ NSDictionary *_Nullable _readDictPlist(NSURL *url, bool mutable, NSError * __aut
                     removeFromConfig(@"Scroll.reverseDirection");
 
                     currentVersion = 28;
+
+                } else if (currentVersion == 28) {
+
+                    /// 28 -> 29
+                    ///     Persist the legacy seven-point modified-drag
+                    ///     activation distance as a user-adjustable setting.
+
+                    log(Info, "Upgrading configVersion from 28 to 29...");
+
+                    if (![config(@"General.dragActivationThreshold") isKindOfClass:NSNumber.class]) {
+                        NSNumber *defaultThreshold = [defaultConfig objectForCoolKeyPath:@"General.dragActivationThreshold"];
+                        setConfig(@"General.dragActivationThreshold", defaultThreshold ?: @7);
+                    }
+
+                    currentVersion = 29;
                     
                 } else {
                     

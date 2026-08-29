@@ -9,6 +9,8 @@
         <customObject id="-2" userLabel="File's Owner" customClass="ButtonOptionsViewController" customModule="Mac_Mouse_Fix" customModuleProvider="target">
             <connections>
                 <outlet property="doneButton" destination="GPK-st-8lU" id="tH2-5f-s5U"/>
+                <outlet property="dragActivationThresholdLabel" destination="thr-val-label" id="thr-val-outlet"/>
+                <outlet property="dragActivationThresholdSlider" destination="thr-slider" id="thr-slider-outlet"/>
                 <outlet property="lockPointerButton" destination="5ry-fl-BuF" id="vXP-NI-bpu"/>
                 <outlet property="view" destination="Hz6-mo-xeY" id="0bl-1N-x8E"/>
             </connections>
@@ -16,11 +18,11 @@
         <customObject id="-1" userLabel="First Responder" customClass="FirstResponder"/>
         <customObject id="-3" userLabel="Application" customClass="NSObject"/>
         <customView id="Hz6-mo-xeY">
-            <rect key="frame" x="0.0" y="0.0" width="394" height="114"/>
+            <rect key="frame" x="0.0" y="0.0" width="394" height="174"/>
             <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
             <subviews>
                 <button horizontalHuggingPriority="1000" verticalHuggingPriority="750" translatesAutoresizingMaskIntoConstraints="NO" id="5ry-fl-BuF">
-                    <rect key="frame" x="20" y="78" width="344" height="16"/>
+                    <rect key="frame" x="20" y="138" width="344" height="16"/>
                     <buttonCell key="cell" type="check" title="Lock Mouse Pointer During 'Click and Drag' Gestures" bezelStyle="regularSquare" imagePosition="left" state="on" inset="2" id="Mmp-uv-DmY">
                         <behavior key="behavior" changeContents="YES" doesNotDimImage="YES" lightByContents="YES"/>
                         <font key="font" metaFont="system"/>
@@ -39,7 +41,7 @@ So consider removing the *Markdown emphasis* when copying over the text from tri
                     </buttonCell>
                 </button>
                 <textField focusRingType="none" horizontalHuggingPriority="251" verticalHuggingPriority="750" misplaced="YES" translatesAutoresizingMaskIntoConstraints="NO" id="lWy-37-C7U">
-                    <rect key="frame" x="38" y="53" width="207" height="16"/>
+                    <rect key="frame" x="38" y="113" width="207" height="16"/>
                     <textFieldCell key="cell" lineBreakMode="clipping" title="Recommended for Trackball Mice" id="DQ6-Rq-6nC">
                         <font key="font" metaFont="smallSystem"/>
                         <color key="textColor" name="secondaryLabelColor" catalog="System" colorSpace="catalog"/>
@@ -47,6 +49,26 @@ So consider removing the *Markdown emphasis* when copying over the text from tri
                         <attributedString key="userComments">
                             <fragment content="Context: Locking the Mouse Pointer during 'Click and Drag' Gestures is &quot;Recommended for Trackball Mice&quot;"/>
                         </attributedString>
+                    </textFieldCell>
+                </textField>
+                <textField focusRingType="none" horizontalHuggingPriority="1000" verticalHuggingPriority="750" translatesAutoresizingMaskIntoConstraints="NO" id="thr-title-label">
+                    <rect key="frame" x="38" y="76" width="171" height="16"/>
+                    <textFieldCell key="cell" lineBreakMode="clipping" title="Gesture Activation Distance" id="thr-title-cell">
+                        <font key="font" metaFont="system"/>
+                        <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog"/>
+                        <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
+                    </textFieldCell>
+                </textField>
+                <slider verticalHuggingPriority="750" translatesAutoresizingMaskIntoConstraints="NO" id="thr-slider">
+                    <rect key="frame" x="215" y="72" width="111" height="23"/>
+                    <sliderCell key="cell" continuous="YES" alignment="left" minValue="3" maxValue="40" doubleValue="7" tickMarkPosition="below" sliderType="linear" id="thr-slider-cell"/>
+                </slider>
+                <textField focusRingType="none" horizontalHuggingPriority="1000" verticalHuggingPriority="750" translatesAutoresizingMaskIntoConstraints="NO" id="thr-val-label">
+                    <rect key="frame" x="334" y="76" width="40" height="16"/>
+                    <textFieldCell key="cell" lineBreakMode="clipping" alignment="right" title="7 px" id="thr-val-cell">
+                        <font key="font" metaFont="system"/>
+                        <color key="textColor" name="secondaryLabelColor" catalog="System" colorSpace="catalog"/>
+                        <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
                     </textFieldCell>
                 </textField>
                 <button verticalHuggingPriority="750" translatesAutoresizingMaskIntoConstraints="NO" id="GPK-st-8lU">
@@ -75,7 +97,14 @@ DQ
             </subviews>
             <constraints>
                 <constraint firstItem="5ry-fl-BuF" firstAttribute="top" secondItem="Hz6-mo-xeY" secondAttribute="top" constant="20" id="3dl-Ll-km1"/>
-                <constraint firstItem="GPK-st-8lU" firstAttribute="top" secondItem="lWy-37-C7U" secondAttribute="bottom" constant="15" id="DKb-Ex-quH"/>
+                <constraint firstItem="thr-title-label" firstAttribute="top" secondItem="lWy-37-C7U" secondAttribute="bottom" constant="18" id="threshold-top"/>
+                <constraint firstItem="thr-title-label" firstAttribute="leading" secondItem="lWy-37-C7U" secondAttribute="leading" id="threshold-leading"/>
+                <constraint firstItem="thr-slider" firstAttribute="leading" secondItem="thr-title-label" secondAttribute="trailing" constant="10" id="threshold-slider-leading"/>
+                <constraint firstItem="thr-slider" firstAttribute="centerY" secondItem="thr-title-label" secondAttribute="centerY" id="threshold-slider-center"/>
+                <constraint firstItem="thr-val-label" firstAttribute="leading" secondItem="thr-slider" secondAttribute="trailing" constant="8" id="threshold-value-leading"/>
+                <constraint firstItem="thr-val-label" firstAttribute="centerY" secondItem="thr-title-label" secondAttribute="centerY" id="threshold-value-center"/>
+                <constraint firstAttribute="trailing" secondItem="thr-val-label" secondAttribute="trailing" constant="20" id="threshold-value-trailing"/>
+                <constraint firstItem="GPK-st-8lU" firstAttribute="top" secondItem="thr-title-label" secondAttribute="bottom" constant="18" id="DKb-Ex-quH"/>
                 <constraint firstAttribute="trailing" secondItem="GPK-st-8lU" secondAttribute="trailing" constant="20" id="K68-hk-MtN"/>
                 <constraint firstItem="lWy-37-C7U" firstAttribute="leading" secondItem="5ry-fl-BuF" secondAttribute="leading" constant="20" id="L54-lI-JUn"/>
                 <constraint firstAttribute="trailing" secondItem="5ry-fl-BuF" secondAttribute="trailing" constant="30" id="NWC-DO-JR7"/>

@@ -38,6 +38,9 @@ import Cocoa
     @objc static func freezePointerDuringModifiedDrag() -> Bool {
         return config("General.lockPointerDuringDrag") as! Bool
     }
+    @objc static var dragActivationThreshold: Int {
+        DragActivationThreshold.sanitized(config("General.dragActivationThreshold"))
+    }
     @objc static var doubleClickThreshold: Double {
         return 0.01;
     }

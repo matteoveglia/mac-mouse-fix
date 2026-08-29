@@ -54,6 +54,12 @@ jobs:
           "$RUNNER_TEMP/click-cycle-tests"
 
           xcrun swiftc \
+            Helper/Core/Buttons/ButtonActionLocation.swift \
+            Tests/ButtonActionLocationTests.swift \
+            -o "$RUNNER_TEMP/button-action-location-tests"
+          "$RUNNER_TEMP/button-action-location-tests"
+
+          xcrun swiftc \
             Helper/Core/Config/ScrollDirection.swift \
             Tests/ScrollDirectionTests.swift \
             -o "$RUNNER_TEMP/scroll-direction-tests"

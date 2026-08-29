@@ -24,10 +24,16 @@
 #import "SymbolicHotKeys.h"
 #import "MFKeyboardShortcutEventPlan.h"
 #import <Carbon/Carbon.h>
+#import <math.h>
 
 @implementation Actions
 
 + (void)executeActionArray:(NSArray *)actionArray phase:(MFActionPhase)phase {
+
+    [self executeActionArray:actionArray phase:phase mouseLocation:CGPointMake(NAN, NAN)];
+}
+
++ (void)executeActionArray:(NSArray *)actionArray phase:(MFActionPhase)phase mouseLocation:(CGPoint)mouseLocation {
     
     DDLogDebug("Executing action array: %@, phase: %@", actionArray, @(phase));
     
@@ -169,7 +175,11 @@
             
             NSNumber *button = actionDict[kMFActionDictKeyMouseButtonClicksVariantButtonNumber];
             NSNumber *nOfClicks = actionDict[kMFActionDictKeyMouseButtonClicksVariantNumberOfClicks];
-            [ModificationUtility postMouseButtonClicks:button.intValue nOfClicks:nOfClicks.intValue];
+            if (isfinite(mouseLocation.x) && isfinite(mouseLocation.y)) {
+                [ModificationUtility postMouseButtonClicks:button.intValue nOfClicks:nOfClicks.intValue atLocation:mouseLocation];
+            } else {
+                [ModificationUtility postMouseButtonClicks:button.intValue nOfClicks:nOfClicks.intValue];
+            }
         
         } else if ([actionType isEqualToString:kMFActionDictTypeAddModeFeedback]) {
             NSMutableDictionary *payload = ((NSMutableDictionary *)actionDict.mutableCopy);

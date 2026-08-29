@@ -135,6 +135,10 @@ extension Actions {
     static func executeActionArray(_ array: NSArray, phase: MFActionPhase) {
         __executeActionArray(array, phase: phase)
     }
+
+    static func executeActionArray(_ array: NSArray, phase: MFActionPhase, mouseLocation: CGPoint) {
+        __executeActionArray(array, phase: phase, mouseLocation: mouseLocation)
+    }
 }
 
 extension RemapsAnalyzer {

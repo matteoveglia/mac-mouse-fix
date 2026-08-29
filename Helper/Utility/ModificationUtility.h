@@ -54,6 +54,7 @@ BOOL directionChanged(MFDirection direction1, MFDirection direction2);
 
 + (void)hideMousePointer:(BOOL)B;
 + (void)postMouseButtonClicks:(MFMouseButtonNumber)button nOfClicks:(int64_t)nOfClicks;
++ (void)postMouseButtonClicks:(MFMouseButtonNumber)button nOfClicks:(int64_t)nOfClicks atLocation:(CGPoint)location;
 + (void)postMouseButton:(MFMouseButtonNumber)button down:(BOOL)down;
 
 @end

@@ -24,6 +24,7 @@ import Cocoa
     static var modifiers = NSDictionary()
     static var modifications = NSDictionary()
     static var maxClickLevel: Int = -1
+    static var actionMouseLocation = ButtonActionLocation()
     
     /// Init
     private static var isInitialized = false
@@ -48,6 +49,11 @@ import Cocoa
         /// Update stuff when clickCycle starts
         
         let clickCycleIsActive = clickCycle.isActiveFor(device: device.uniqueID(), button: button)
+        if mouseDown {
+            /// Deferred single-click actions must target the physical press,
+            /// not wherever the pointer moved during multi-click resolution.
+            self.actionMouseLocation.recordPress(at: event.location)
+        }
         if mouseDown && !clickCycleIsActive {
             
             /// Update active device
@@ -150,15 +156,17 @@ import Cocoa
             
             /// Notify TrialCounter.swift
             TrialCounter.shared.handleUse()
+
+            let actionLocation = actionMouseLocation.point
             
             /// Execute actionArray
             if startOrEnd == kMFActionPhaseCombined {
-                Actions.executeActionArray(actionArray, phase: kMFActionPhaseCombined)
+                Actions.executeActionArray(actionArray, phase: kMFActionPhaseCombined, mouseLocation: actionLocation)
             } else if startOrEnd == kMFActionPhaseStart {
-                Actions.executeActionArray(actionArray, phase: kMFActionPhaseStart)
+                Actions.executeActionArray(actionArray, phase: kMFActionPhaseStart, mouseLocation: actionLocation)
                 onRelease.append {
                     DDLogDebug("triggerCallback - unconditionalRelease button \(button)")
-                    Actions.executeActionArray(actionArray, phase: kMFActionPhaseEnd)
+                    Actions.executeActionArray(actionArray, phase: kMFActionPhaseEnd, mouseLocation: actionLocation)
                 }
             }
             

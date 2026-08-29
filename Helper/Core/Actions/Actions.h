@@ -22,6 +22,9 @@ typedef enum {
 @interface Actions : NSObject
 
 + (void)executeActionArray:(MF_SWIFT_UNBRIDGED(NSArray *))actionArray phase:(MFActionPhase)phase NS_REFINED_FOR_SWIFT;
++ (void)executeActionArray:(MF_SWIFT_UNBRIDGED(NSArray *))actionArray
+                     phase:(MFActionPhase)phase
+             mouseLocation:(CGPoint)mouseLocation NS_REFINED_FOR_SWIFT;
 
 @end
 

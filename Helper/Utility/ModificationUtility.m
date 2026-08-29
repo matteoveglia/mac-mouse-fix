@@ -212,12 +212,15 @@ BOOL directionChanged(MFDirection direction1, MFDirection direction2) {
 #pragma mark - Button clicks
 
 + (void)postMouseButtonClicks:(MFMouseButtonNumber)button nOfClicks:(int64_t)nOfClicks {
+
+    [self postMouseButtonClicks:button nOfClicks:nOfClicks atLocation:getPointerLocation()];
+}
++ (void)postMouseButtonClicks:(MFMouseButtonNumber)button nOfClicks:(int64_t)nOfClicks atLocation:(CGPoint)mouseLoc {
     
     DDLogDebug("Posting %lld mouse button %u clicks", nOfClicks, button);
     
     CGEventTapLocation tapLoc = kCGSessionEventTap;
     
-    CGPoint mouseLoc = getPointerLocation();
     CGEventType eventTypeDown = [SharedUtility CGEventTypeForButtonNumber:button isMouseDown:YES];
     CGEventType eventTypeUp = [SharedUtility CGEventTypeForButtonNumber:button isMouseDown:NO];
     CGMouseButton buttonCG = [SharedUtility CGMouseButtonFromMFMouseButtonNumber:button];

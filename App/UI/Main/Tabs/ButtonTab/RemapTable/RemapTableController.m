@@ -892,6 +892,17 @@ static void getTriggerValues(int *btn1, int *lvl1, NSString **dur1, NSString **t
         } else if (modifierFlags1.integerValue < modifierFlags2.integerValue) {
             return NSOrderedAscending;
         }
+
+        /// Keyboard activators are exact key identities. Include them in the
+        /// ordering so two otherwise-identical mouse rows gated by different
+        /// F-keys do not fall through to the assertion below.
+        NSNumber *keyboardActivator1 = preconds1[kMFModificationPreconditionKeyKeyboardActivator];
+        NSNumber *keyboardActivator2 = preconds2[kMFModificationPreconditionKeyKeyboardActivator];
+        if (keyboardActivator1.integerValue > keyboardActivator2.integerValue) {
+            return NSOrderedDescending;
+        } else if (keyboardActivator1.integerValue < keyboardActivator2.integerValue) {
+            return NSOrderedAscending;
+        }
         
         /// 1.1. Sort by trigger type (drag, scroll, button)
         NSArray *orderedTypes = @[@"button", @"scroll", @"drag"];

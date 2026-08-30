@@ -35,6 +35,20 @@ NSTableView *_tableView;
 
 static NSAttributedString *getShortcutString(NSDictionary *effectDict, BOOL isKeyShortcut);
 
+static NSString *keyboardActivatorLabelForKeyCode(CGKeyCode keyCode) {
+    switch (keyCode) {
+        case 0x69: return @"F13";
+        case 0x6B: return @"F14";
+        case 0x71: return @"F15";
+        case 0x6A: return @"F16";
+        case 0x40: return @"F17";
+        case 0x4F: return @"F18";
+        case 0x50: return @"F19";
+        case 0x5A: return @"F20";
+        default: return nil;
+    }
+}
+
 static void insertSelectedShortcutEntry(NSMutableArray *effectsTable, NSDictionary *selectedEffect) {
     NSIndexSet *keyCaptureIndexes = [effectsTable indexesOfObjectsPassingTest:^BOOL(NSDictionary *entry, NSUInteger idx, BOOL *stop) {
         return [entry[@"keyCaptureEntry"] isEqual:@YES];
@@ -759,6 +773,7 @@ static NSString *effectNameForRowDict(NSDictionary * _Nonnull rowDict) {
     NSNumber *btn;
     NSNumber *lvl;
     NSString *dur; /// Only used for button trigger
+    NSNumber *keyboardActivator = rowDict[kMFRemapsKeyModificationPrecondition][kMFModificationPreconditionKeyKeyboardActivator];
     BOOL flagsOnlyPrecond = NO;
     
     if ([triggerType isEqual: @"_button"]) {
@@ -775,7 +790,7 @@ static NSString *effectNameForRowDict(NSDictionary * _Nonnull rowDict) {
         
         NSMutableArray *buttonPressSequence = ((NSArray *)rowDict[kMFRemapsKeyModificationPrecondition][kMFModificationPreconditionKeyButtons]).mutableCopy;
         
-        if (buttonPressSequence) {
+        if (buttonPressSequence.count > 0) {
             
             /// Extract last button
             btn = buttonPressSequence.lastObject[kMFButtonModificationPreconditionKeyButtonNumber];
@@ -785,7 +800,8 @@ static NSString *effectNameForRowDict(NSDictionary * _Nonnull rowDict) {
             [buttonPressSequence removeLastObject];
             rowDict[kMFRemapsKeyModificationPrecondition][kMFModificationPreconditionKeyButtons] = buttonPressSequence;
             
-        } else if (rowDict[kMFRemapsKeyModificationPrecondition][kMFModificationPreconditionKeyKeyboard] != nil) {
+        } else if (rowDict[kMFRemapsKeyModificationPrecondition][kMFModificationPreconditionKeyKeyboard] != nil
+                   || keyboardActivator != nil) {
             
             /// There are no button preconds but there are keyboard modifier preconds - we can deal with it
             flagsOnlyPrecond = YES;
@@ -982,6 +998,25 @@ static NSString *effectNameForRowDict(NSDictionary * _Nonnull rowDict) {
     
     NSNumber *flags = rowDict[kMFRemapsKeyModificationPrecondition][kMFModificationPreconditionKeyKeyboard];
     NSString *kbMod = [UIStrings getKeyboardModifierString:flags.unsignedIntegerValue];
+
+    /// Keyboard activators are exact function-key identities and must remain
+    /// visually distinct from modifier flags. `UIStrings` already knows how
+    /// to render F13-F20 using the app's normal key style.
+    NSAttributedString *keyboardActivatorString = [@"" attributed];
+    if ([keyboardActivator isKindOfClass:NSNumber.class]) {
+        keyboardActivatorString = [UIStrings getStringForKeyCode:keyboardActivator.unsignedShortValue
+                                                            flags:0
+                                                             font:[NSFont systemFontOfSize:NSFont.systemFontSize]];
+        if (keyboardActivatorString == nil || keyboardActivatorString.string.length == 0) {
+            NSString *label = keyboardActivatorLabelForKeyCode(keyboardActivator.unsignedShortValue);
+            keyboardActivatorString = label != nil
+                ? label.attributed
+                : stringf(MFLocalizedString(
+                    @"trigger.keyboard-activator.fallback",
+                    @"Key %hu"
+                ), keyboardActivator.unsignedShortValue).attributed;
+        }
+    }
     
     ///
     /// Post processing on the substrings
@@ -1015,7 +1050,7 @@ static NSString *effectNameForRowDict(NSDictionary * _Nonnull rowDict) {
     /// Join all substrings to get result
     ///
     
-    NSAttributedString *fullTriggerCellString = astringf(@"%@ %@ %@", [kbMod attributed], [btnMod attributed], tr);
+    NSAttributedString *fullTriggerCellString = astringf(@"%@ %@ %@ %@", keyboardActivatorString, [kbMod attributed], [btnMod attributed], tr);
     
     /// Clean up string
     fullTriggerCellString = [fullTriggerCellString attributedStringByTrimmingWhitespace];
@@ -1031,7 +1066,12 @@ static NSString *effectNameForRowDict(NSDictionary * _Nonnull rowDict) {
     
     /// Set string
     triggerCell.textField.attributedStringValue = fullTriggerCellString;
-    triggerCell.textField.toolTip = nil;
+    triggerCell.textField.toolTip = keyboardActivator != nil
+        ? stringf(MFLocalizedString(
+            @"trigger.keyboard-activator.hint",
+            @"Hold %@ while using this remap."
+        ), keyboardActivatorString.string)
+        : nil;
     
     /// Hook up delete button
     RemapTableButton *deleteButton = (RemapTableButton *)[triggerCell subviewsWithIdentifier:@"deleteButton"][0];

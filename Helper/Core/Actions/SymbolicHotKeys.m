@@ -78,6 +78,7 @@
 
 #import "Logging.h"
 #import "SymbolicHotKeys.h"
+#import "../../../Shared/Utility/MFKeyboardEventProvenance.h"
 #import "HelperUtility.h"
 #import <Carbon/Carbon.h>
 #import "SharedUtility.h"
@@ -208,6 +209,8 @@ static void postKeyboardEventsForSymbolicHotKey(CGKeyCode vkc, CGSModifierFlags 
     CGEventFlags originalModifierFlags = getModifierFlagsWithEvent(keyDown);
     CGEventSetFlags(keyDown, (CGEventFlags)mods);
     CGEventSetFlags(keyUp,   originalModifierFlags); /// Restore original keyboard modifier flags state on key up. This seems to fix `[Modifiers getCurrentModifiers]`
+    MFMarkKeyboardEventAsSynthetic(keyDown);
+    MFMarkKeyboardEventAsSynthetic(keyUp);
     
     /// Send key events
     CGEventPost(tapLoc, keyDown);

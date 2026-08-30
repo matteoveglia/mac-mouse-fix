@@ -23,6 +23,7 @@
 */
 #import "SymbolicHotKeys.h"
 #import "MFKeyboardShortcutEventPlan.h"
+#import "../../../Shared/Utility/MFKeyboardEventProvenance.h"
 #import <Carbon/Carbon.h>
 #import <math.h>
 
@@ -239,6 +240,7 @@ static void postKeyboardShortcut(CGKeyCode keyCode, CGSModifierFlags modifierFla
         CGEventRef event = CGEventCreateKeyboardEvent(NULL, step.keyCode, step.keyDown);
         if (event == NULL) continue;
         CGEventSetFlags(event, step.flags);
+        MFMarkKeyboardEventAsSynthetic(event);
 
         /// Keep this in sync with `MFEmulateNSMenuItemRemapping()`. CoreGraphics
         /// otherwise chooses the wrong keyboard type on mixed ANSI/JIS setups.

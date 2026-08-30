@@ -231,6 +231,10 @@ import Foundation
         
         /// Init AddField visuals
         addField.coolInit()
+        addField.toolTip = MFLocalizedString(
+            "add-field.keyboard-activator-hint",
+            comment: "Hold an F13-F20 key while clicking a mouse button to add a key-held gesture remap."
+        )
     }
     
     func createTrackingArea() {

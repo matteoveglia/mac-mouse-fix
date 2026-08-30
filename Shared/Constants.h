@@ -132,7 +132,9 @@ typedef NSString*                                                       MFString
 #define kMFButtonModificationPreconditionKeyClickLevel                  @"level"
 // Keyboard
 #define kMFModificationPreconditionKeyKeyboard                          @"keyboardModifiers"
+#define kMFModificationPreconditionKeyKeyboardActivator                  @"keyboardActivator"
 // (^ Use NSModifierFlags (CGEventFlags would probably work, too) as values)
+
 
 // Modified drag
 

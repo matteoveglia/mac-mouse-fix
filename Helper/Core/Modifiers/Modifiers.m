@@ -16,8 +16,12 @@
 #import "DeviceManager.h"
 #import "SharedUtility.h"
 #import "MFEventTapHandle.h"
+#import "../../../Shared/Utility/MFKeyboardEventProvenance.h"
 #import <os/signpost.h>
 #import "Mac_Mouse_Fix_Helper-Swift.h"
+
+static CGEventRef _Nullable kbActivatorChanged(CGEventTapProxy proxy, CGEventType type, CGEventRef event, void *userInfo);
+static void clearKeyboardActivatorState(BOOL notify);
 
 @implementation Modifiers
 
@@ -50,6 +54,9 @@ static NSMutableDictionary *_modifiers;
 static MFModifierPriority _kbModPriority;
 static MFModifierPriority _btnModPriority;
 static MFEventTapHandle *_kbModEventTapHandle;
+static MFEventTapHandle *_kbActivatorEventTapHandle;
+static KeyboardActivatorState *_kbActivatorState;
+static NSSet<NSNumber *> *_kbActivatorKeyCodes;
 
 static BOOL setKeyboardModifierEventTapEnabled(BOOL enabled, const char *reason) {
     NSString *logReason = reason ? [NSString stringWithUTF8String:reason] : @"unknown";
@@ -67,10 +74,18 @@ static BOOL setKeyboardModifierEventTapEnabled(BOOL enabled, const char *reason)
         
         /// Init `_modifiers`
         _modifiers = [NSMutableDictionary dictionary];
+        _kbActivatorState = [KeyboardActivatorState new];
+        _kbActivatorKeyCodes = [NSSet set];
         
         /// Create keyboard modifier event tap
         CGEventMask mask = CGEventMaskBit(kCGEventFlagsChanged);
         _kbModEventTapHandle = [MFEventTapHandle handleWithLocation:kCGHIDEventTap mask:mask options:kCGEventTapOptionListenOnly placement:kCGHeadInsertEventTap callback:kbModsChanged runLoop:CFRunLoopGetMain() mode:kCFRunLoopDefaultMode label:@"Modifiers"];
+
+        /// Create a separate intercepting tap for configured keyboard gesture
+        /// activators. It remains disabled until SwitchMaster supplies a
+        /// valid configuration and input policy allows interception.
+        CGEventMask activatorMask = CGEventMaskBit(kCGEventKeyDown) | CGEventMaskBit(kCGEventKeyUp);
+        _kbActivatorEventTapHandle = [MFEventTapHandle handleWithLocation:kCGHIDEventTap mask:activatorMask options:kCGEventTapOptionDefault placement:kCGHeadInsertEventTap callback:kbActivatorChanged runLoop:CFRunLoopGetMain() mode:kCFRunLoopDefaultMode label:@"Keyboard Activator"];
         
 //        /// Enable/Disable eventTap based on Remap.remaps
 //        CGEventTapEnable(_kbModEventTap, false); /// Disable eventTap first (Might prevent `_keyboardModifierEventTap` from always being called twice - Nope doesn't make a difference)
@@ -90,6 +105,11 @@ static BOOL setKeyboardModifierEventTapEnabled(BOOL enabled, const char *reason)
 }
 
 + (void)shutdown {
+    clearKeyboardActivatorState(NO);
+    [_kbActivatorEventTapHandle invalidate];
+    _kbActivatorEventTapHandle = nil;
+    _kbActivatorState = nil;
+    _kbActivatorKeyCodes = nil;
     [_kbModEventTapHandle invalidate];
     _kbModEventTapHandle = nil;
 }
@@ -206,6 +226,22 @@ static BOOL setKeyboardModifierEventTapEnabled(BOOL enabled, const char *reason)
     Buttons.useButtonModifiers = _btnModPriority != kMFModifierPriorityUnused;
 }
 
++ (void)setKeyboardActivatorKeyCodes:(NSSet<NSNumber *> *)keyCodes enabled:(BOOL)enabled {
+    NSSet<NSNumber *> *newKeyCodes = [keyCodes copy] ?: [NSSet set];
+    BOOL shouldEnable = enabled && newKeyCodes.count > 0;
+    BOOL keyCodesChanged = ![_kbActivatorKeyCodes isEqualToSet:newKeyCodes];
+
+    /// A held key must never survive a configuration or policy transition.
+    /// Clear it before replacing the allowed set so the old key-up cannot
+    /// deactivate a newly configured key.
+    if (keyCodesChanged || !shouldEnable) {
+        clearKeyboardActivatorState(YES);
+    }
+
+    _kbActivatorKeyCodes = newKeyCodes;
+    [_kbActivatorEventTapHandle setEnabled:shouldEnable reason:@"setKeyboardActivatorKeyCodes"];
+}
+
 #pragma mark Inspect State
 /// At the time of writing we just need this for debugging
 
@@ -264,6 +300,63 @@ CGEventRef _Nullable kbModsChanged(CGEventTapProxy proxy, CGEventType type, CGEv
     
     /// Return
     return event;
+}
+
+static void clearKeyboardActivatorState(BOOL notify) {
+    BOOL hadState = [_kbActivatorState reset];
+    BOOL hadModifier = _modifiers[kMFModificationPreconditionKeyKeyboardActivator] != nil;
+    [_modifiers removeObjectForKey:kMFModificationPreconditionKeyKeyboardActivator];
+
+    if (notify && (hadState || hadModifier) && _modifiers != nil) {
+        [SwitchMaster.shared modifiersChangedWithModifiers:_modifiers];
+    }
+}
+
+static CGEventRef _Nullable kbActivatorChanged(CGEventTapProxy proxy, CGEventType type, CGEventRef event, void *userInfo) {
+    if (type == kCGEventTapDisabledByTimeout || type == kCGEventTapDisabledByUserInput) {
+        clearKeyboardActivatorState(YES);
+        if (type == kCGEventTapDisabledByTimeout && _kbActivatorKeyCodes.count > 0) {
+            [_kbActivatorEventTapHandle setEnabled:YES reason:@"keyboardActivatorEventTapDisabledByTimeout"];
+        }
+        return event;
+    }
+
+    if (event == NULL || (type != kCGEventKeyDown && type != kCGEventKeyUp)) {
+        return event;
+    }
+
+    /// MMF's own shortcuts and app-switcher events must never feed back into
+    /// the activator that is consuming user key events.
+    if (MFIsSyntheticKeyboardEvent(event)) {
+        return event;
+    }
+
+    CGKeyCode keyCode = (CGKeyCode)CGEventGetIntegerValueField(event, kCGKeyboardEventKeycode);
+    NSNumber *keyCodeNumber = @(keyCode);
+    BOOL isRepeat = type == kCGEventKeyDown
+        && CGEventGetIntegerValueField(event, kCGKeyboardEventAutorepeat) != 0;
+    MFKeyboardActivatorEventResult result;
+
+    if (type == kCGEventKeyDown) {
+        result = [_kbActivatorState handleKeyDown:keyCode
+                                         isRepeat:isRepeat
+                                       isSynthetic:NO
+                                  allowedKeyCodes:_kbActivatorKeyCodes];
+    } else {
+        result = [_kbActivatorState handleKeyUp:keyCode
+                                     isSynthetic:NO
+                                allowedKeyCodes:_kbActivatorKeyCodes];
+    }
+
+    if (result == MFKeyboardActivatorEventResultActivated) {
+        _modifiers[kMFModificationPreconditionKeyKeyboardActivator] = keyCodeNumber;
+        [SwitchMaster.shared modifiersChangedWithModifiers:_modifiers];
+    } else if (result == MFKeyboardActivatorEventResultDeactivated) {
+        [_modifiers removeObjectForKey:kMFModificationPreconditionKeyKeyboardActivator];
+        [SwitchMaster.shared modifiersChangedWithModifiers:_modifiers];
+    }
+
+    return result == MFKeyboardActivatorEventResultSwallow ? NULL : event;
 }
 
 + (void)buttonModsChangedTo:(ButtonModifierState)newModifiers {

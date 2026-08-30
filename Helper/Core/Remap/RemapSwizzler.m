@@ -146,10 +146,15 @@ static NSDictionary *_Nullable subsetSwizzler(NSDictionary *remaps, NSDictionary
         
         NSArray *buttons = precond[kMFModificationPreconditionKeyButtons];
         int64_t buttonSubsequenceLength = buttons.count;
+
+        /// A keyboard activator is an exact identity rather than a bitmask.
+        /// Count it as one additional specificity dimension so a key-gated
+        /// row wins over the legacy row for the same trigger.
+        int64_t keyboardActivatorSize = precond[kMFModificationPreconditionKeyKeyboardActivator] != nil ? 1 : 0;
         
         [precondsAndSizes addObject:@{
             @"precond": precond,
-            @"size": @(flagsSubsetSize + buttonSubsequenceLength),
+            @"size": @(flagsSubsetSize + buttonSubsequenceLength + keyboardActivatorSize),
         }];
     }
     
@@ -286,6 +291,13 @@ BOOL isSubMod(NSDictionary *modifiers, NSDictionary *potentialSubModifiers) {
     NSArray *subButtons = potentialSubModifiers[kMFModificationPreconditionKeyButtons];
     
     if (!isSubSequence(buttons, subButtons)) return NO;
+
+    /// Keyboard activators are exact key identities. A legacy row without an
+    /// activator remains eligible while an activator is held, but a row that
+    /// requires one must match the active key exactly.
+    NSNumber *activator = modifiers[kMFModificationPreconditionKeyKeyboardActivator];
+    NSNumber *subActivator = potentialSubModifiers[kMFModificationPreconditionKeyKeyboardActivator];
+    if (subActivator != nil && ![activator isEqualToNumber:subActivator]) return NO;
     
     /// Is subSet!
     

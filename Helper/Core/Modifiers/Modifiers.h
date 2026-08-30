@@ -48,6 +48,11 @@ typedef enum {
 + (void)setKeyboardModifierPriority:(MFModifierPriority)priority;
 + (void)setButtonModifierPriority:(MFModifierPriority)priority;
 
+/// Configure the separate key-down/key-up owner used for keyboard-held
+/// gestures. Activator key codes are exact virtual-key-code values and are
+/// intentionally kept out of the legacy keyboard modifier flags dictionary.
++ (void)setKeyboardActivatorKeyCodes:(NSSet<NSNumber *> *)keyCodes enabled:(BOOL)enabled;
+
 + (MF_SWIFT_UNBRIDGED(NSDictionary *))modifiersWithEvent:(CGEventRef _Nullable)event NS_REFINED_FOR_SWIFT;
 
 + (void)buttonModsChangedTo:(MF_SWIFT_UNBRIDGED(ButtonModifierState))newModifiers NS_REFINED_FOR_SWIFT;

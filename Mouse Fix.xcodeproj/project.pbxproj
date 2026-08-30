@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		C0D302030000000000000003 /* MFEventTapHandle.m in Sources */ = {isa = PBXBuildFile; fileRef = C0D302020000000000000002 /* MFEventTapHandle.m */; };
+		C0D315020000000000000002 /* KeyboardActivatorState.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0D315010000000000000001 /* KeyboardActivatorState.swift */; };
 		4F0438152E59F08200368E60 /* Old MFDisplayLinkWorkType stuff.md in Resources */ = {isa = PBXBuildFile; fileRef = 4F0438142E59F08200368E60 /* Old MFDisplayLinkWorkType stuff.md */; };
 		4F0438162E59F08200368E60 /* Old MFDisplayLinkWorkType stuff.md in Resources */ = {isa = PBXBuildFile; fileRef = 4F0438142E59F08200368E60 /* Old MFDisplayLinkWorkType stuff.md */; };
 		4F09283F28B8101600BDC2FF /* TrialSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F09283E28B8101600BDC2FF /* TrialSection.swift */; };
@@ -496,6 +497,8 @@
 /* Begin PBXFileReference section */
 		C0D302010000000000000001 /* MFEventTapHandle.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = MFEventTapHandle.h; sourceTree = "<group>"; };
 		C0D302020000000000000002 /* MFEventTapHandle.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = MFEventTapHandle.m; sourceTree = "<group>"; };
+		C0D315010000000000000001 /* KeyboardActivatorState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardActivatorState.swift; sourceTree = "<group>"; };
+		C0D315030000000000000003 /* MFKeyboardEventProvenance.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = MFKeyboardEventProvenance.h; sourceTree = "<group>"; };
 		4F0028012C58303B00CDB9D0 /* LocalizationScreenshotTakerTestPlan.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; name = LocalizationScreenshotTakerTestPlan.xctestplan; path = LocalizationScreenshotTaker/LocalizationScreenshotTakerTestPlan.xctestplan; sourceTree = SOURCE_ROOT; };
 		4F02C71C2899448900ED0AA8 /* OutputCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutputCoordinator.swift; sourceTree = "<group>"; };
 		4F02C7202899453200ED0AA8 /* OutputCoordinator.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = OutputCoordinator.h; sourceTree = "<group>"; };
@@ -7570,6 +7573,7 @@
 		4FF6653625F2C7B000689B77 /* Utility */ = {
 			isa = PBXGroup;
 			children = (
+				C0D315030000000000000003 /* MFKeyboardEventProvenance.h */,
 				4FF6653E25F2C7B000689B77 /* SharedUtility.h */,
 				4FF6653B25F2C7B000689B77 /* SharedUtility.m */,
 				4FE40B95283A49DD00880BEF /* SharedUtilitySwift.swift */,
@@ -7743,6 +7747,7 @@
 			children = (
 				4FF6661625F2C93A00689B77 /* Modifiers.h */,
 				4FF6661725F2C93A00689B77 /* Modifiers.m */,
+				C0D315010000000000000001 /* KeyboardActivatorState.swift */,
 				4FD9820F292AB02D00645FE3 /* ReactiveModifiers.swift */,
 			);
 			path = Modifiers;
@@ -8615,6 +8620,7 @@
 				C0D301020000000000000001 /* ApplicationPolicy.swift in Sources */,
 				C0D306020000000000000001 /* DragActivationThreshold.swift in Sources */,
 				C0D310030000000000000003 /* ZoomSpeed.swift in Sources */,
+				C0D315020000000000000002 /* KeyboardActivatorState.swift in Sources */,
 				C0D301030000000000000001 /* MFHIDPPTypes.m in Sources */,
 				C0D301040000000000000001 /* MFHIDPPClient.m in Sources */,
 				4FB8B29F2CCEBB1700A5A580 /* GetTrialState.swift in Sources */,

@@ -185,6 +185,7 @@ import ReactiveSwift
         latestRemaps = Remap.remaps
         latestScrollConfig = ScrollConfig.shared
         latestModifiers = Modifiers.modifiers(with: nil)
+        toggleKeyboardActivatorTap()
         
         /// Debug
         logWithState("Initialized.")
@@ -206,6 +207,7 @@ import ReactiveSwift
         /// - Not sure if we need to call `togglePointingTap(modifications:)`
         
         toggleKbModTap()
+        toggleKeyboardActivatorTap()
         if false { toggleBtnModProcessing() } /// [Mar 2025] Why aren't we calling this?
         
         toggleScrollTap()
@@ -238,6 +240,7 @@ import ReactiveSwift
             /// Call togglers
             
             toggleKbModTap()
+            toggleKeyboardActivatorTap()
             if false { toggleBtnModProcessing() }
             /// ^ [Mar 2025] Why aren't we calling this?
             /// Note: [Mar 2025] After adding a `if isLockedDown || !userIsActive` guard inside toggleBtnModProcessing(), Click and Drag doesn't work right after enabling MMF.
@@ -285,6 +288,7 @@ import ReactiveSwift
             /// Call togglers
             
             toggleKbModTap()
+            toggleKeyboardActivatorTap()
             if false { toggleBtnModProcessing() } /// [Mar 2025] Why aren't we calling this?
             
             toggleScrollTap()
@@ -322,6 +326,7 @@ import ReactiveSwift
         /// Call togglers
         
         self.toggleKbModTap()
+        self.toggleKeyboardActivatorTap()
         self.toggleBtnModProcessing()
         
         self.toggleScrollTap()
@@ -369,6 +374,7 @@ import ReactiveSwift
         ///     -  I'm not 100% sure self.latestModifications is always up-to-date here (what if the new remaps should enable modifier tracking but those modifiers aren't in self.latestModifications, yet?). Since this is not performance-critical it's better to just pass in nil, so that `togglePointingTap()` gets the values fresh.
         
         self.toggleKbModTap()
+        self.toggleKeyboardActivatorTap(remaps: remaps)
         self.toggleBtnModProcessing()
         
         self.toggleScrollTap()
@@ -404,6 +410,7 @@ import ReactiveSwift
         ///         TODO: Call toggleButtonTap() here and in all other places we call toggleBtnModProcessing()
         
         self.toggleKbModTap()
+        self.toggleKeyboardActivatorTap()
         self.toggleBtnModProcessing()
         
         self.toggleScrollTap()
@@ -526,6 +533,65 @@ import ReactiveSwift
         }
         
         Modifiers.setKeyboardModifierPriority(priority)
+    }
+
+    /// Keyboard activators are exact key identities, not modifier flags. Keep
+    /// their event tap and active state separate from the legacy modifier tap.
+    /// The first implementation accepts only the reserved F13-F20 virtual
+    /// key codes exposed by `KeyboardActivatorState`.
+    private func toggleKeyboardActivatorTap(remaps remapsArg: NSDictionary? = nil) {
+        let addModeIsEnabled = Remap.addModeIsEnabled
+        let scrollFeatureIsEnabled = InputCapturePolicy.featureIsEnabled(
+            killSwitch: scrollKillSwitch, addModeIsEnabled: addModeIsEnabled)
+        let buttonFeatureIsEnabled = InputCapturePolicy.featureIsEnabled(
+            killSwitch: buttonKillSwitch, addModeIsEnabled: addModeIsEnabled)
+        let keyCodes: Set<NSNumber> = addModeIsEnabled
+            ? supportedKeyboardActivatorKeyCodes()
+            : keyboardActivatorKeyCodes(
+                in: remapsArg ?? latestRemaps,
+                scrollFeatureIsEnabled: scrollFeatureIsEnabled,
+                buttonFeatureIsEnabled: buttonFeatureIsEnabled
+            )
+        let inputIsAllowed = userIsActive && !isLockedDown
+        Modifiers.setKeyboardActivatorKeyCodes(keyCodes, enabled: inputIsAllowed)
+    }
+
+    private func supportedKeyboardActivatorKeyCodes() -> Set<NSNumber> {
+        let values = KeyboardActivatorState.supportedKeyCodes().allObjects as? [NSNumber] ?? []
+        return Set(values)
+    }
+
+    private func keyboardActivatorKeyCodes(
+        in remaps: NSDictionary,
+        scrollFeatureIsEnabled: Bool,
+        buttonFeatureIsEnabled: Bool
+    ) -> Set<NSNumber> {
+        var keyCodes = Set<NSNumber>()
+        remaps.enumerateKeysAndObjects { precondition, modificationValue, _ in
+            guard let precondition = precondition as? NSDictionary,
+                  let keyCode = precondition.object(forKey: kMFModificationPreconditionKeyKeyboardActivator) as? NSNumber,
+                  KeyboardActivatorState.isSupportedKeyCode(keyCode.uint16Value) else {
+                return
+            }
+
+            /// The initial UI creates key-held mouse gestures, so the
+            /// activator is only armed when at least one of this key's
+            /// remaps still has a usable mouse-input/output path. This keeps
+            /// the feature kill switches from silently stealing the key.
+            guard let modification = modificationValue as? NSDictionary else { return }
+            let modifiesButtons = RemapsAnalyzer.modificationsModifyButtons(
+                modification, maxButton: self.maxButtonNumberForInputAnalysis)
+            let modifiesPointing = RemapsAnalyzer.modificationsModifyPointing(modification)
+            let modifiesScroll = RemapsAnalyzer.modificationsModifyScroll(modification)
+            let hasUsablePath =
+                (modifiesButtons && self.hasButtonInputSource && buttonFeatureIsEnabled)
+                || (modifiesPointing && self.hasButtonInputSource && self.hasPointingInputSource && buttonFeatureIsEnabled)
+                || (modifiesScroll && self.hasButtonInputSource && self.hasScrollInputSource && buttonFeatureIsEnabled && scrollFeatureIsEnabled)
+            guard hasUsablePath else { return }
+
+            keyCodes.insert(NSNumber(value: keyCode.uint16Value))
+        }
+        return keyCodes
     }
     
     private func toggleBtnModProcessing() {

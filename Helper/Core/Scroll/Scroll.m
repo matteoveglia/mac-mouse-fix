@@ -8,6 +8,7 @@
 //
 
 #import "Scroll.h"
+#import "../../../Shared/Utility/MFKeyboardEventProvenance.h"
 #import "DeviceManager.h"
 #import "TouchSimulator.h"
 #import "ScrollModifiers.h"
@@ -1427,6 +1428,7 @@ void sendKeyEvent(CGKeyCode keyCode, CGEventFlags flags, bool keyDown) {
     
     CGEventRef event = CGEventCreateKeyboardEvent(NULL, keyCode, keyDown);
     CGEventSetFlags(event, flags);
+    MFMarkKeyboardEventAsSynthetic(event);
     
     CGEventPost(tapLoc, event);
     CFRelease(event);

@@ -83,6 +83,22 @@ jobs:
             -o "$RUNNER_TEMP/zoom-speed-tests"
           "$RUNNER_TEMP/zoom-speed-tests"
 
+          xcrun swiftc \
+            Helper/Core/Modifiers/KeyboardActivatorState.swift \
+            Tests/KeyboardActivatorStateTests.swift \
+            -o "$RUNNER_TEMP/keyboard-activator-state-tests"
+          "$RUNNER_TEMP/keyboard-activator-state-tests"
+
+          xcrun clang \
+            -fobjc-arc \
+            -framework Foundation \
+            -framework CoreGraphics \
+            -Werror \
+            -I Shared/Utility \
+            Tests/MFKeyboardEventProvenanceTests.m \
+            -o "$RUNNER_TEMP/keyboard-event-provenance-tests"
+          "$RUNNER_TEMP/keyboard-event-provenance-tests"
+
           xcrun clang \
             -I Helper/Core/Drag/Action \
             -Werror \

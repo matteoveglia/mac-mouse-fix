@@ -23,6 +23,9 @@ xcuserdata/
 # Carthage derived data
 # Carthage/
 
+# Local Codex build artifacts
+.codex-build/
+
 # White-listing xcschemes folder. (.gitignore whitelisting is a huge hassle but this works)
 # -> We don't need this anymore, because instead we just moved the build schemes to shared
 # !Mouse Fix.xcodeproj/xcuserdata/

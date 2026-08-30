@@ -121,6 +121,7 @@ class ScrollTabController: NSViewController {
     var reverseDirectionHorizontal = ConfigValue<Bool>(configPath: "Scroll.reverseDirectionHorizontal")
     var verticalSpeed = ConfigValue<String>(configPath: "Scroll.verticalSpeed")
     var horizontalSpeed = ConfigValue<String>(configPath: "Scroll.horizontalSpeed")
+    var zoomSpeed = ConfigValue<Int>(configPath: "Scroll.zoomSpeed")
     var trackpadScope = ConfigValue<String>(configPath: "Scroll.trackpadSimulationScope")
     var precise = ConfigValue<Bool>(configPath: "Scroll.precise")
     var horizontalMod = ConfigValue<UInt>(configPath: "Scroll.modifiers.horizontal")
@@ -155,6 +156,8 @@ class ScrollTabController: NSViewController {
     @IBOutlet weak var speedPicker: NSPopUpButton!
     @IBOutlet weak var horizontalSmoothPicker: NSPopUpButton!
     @IBOutlet weak var horizontalSpeedPicker: NSPopUpButton!
+    @IBOutlet weak var zoomSpeedSlider: NSSlider!
+    @IBOutlet weak var zoomSpeedLabel: NSTextField!
     @IBOutlet weak var trackpadScopePicker: NSPopUpButton!
     @IBOutlet weak var trackpadAppsButton: NSButton!
     @IBOutlet weak var trackpadAppsSummary: NSTextField!
@@ -1128,6 +1131,19 @@ class ScrollTabController: NSViewController {
             identifier!.rawValue
         })
         horizontalSpeedPicker.reactive.selectedIdentifier <~ horizontalSpeed.producer.map({ NSUserInterfaceItemIdentifier($0) })
+
+        zoomSpeedSlider.minValue = Double(ZoomSpeed.minimumPercentage)
+        zoomSpeedSlider.maxValue = Double(ZoomSpeed.maximumPercentage)
+        zoomSpeedSlider.numberOfTickMarks = ((ZoomSpeed.maximumPercentage - ZoomSpeed.minimumPercentage) / ZoomSpeed.stepPercentage) + 1
+        zoomSpeedSlider.reactive.doubleValue <~ zoomSpeed.producer.map { value in
+            Double(ZoomSpeed.clampedPercentage(value))
+        }
+        zoomSpeed <~ zoomSpeedSlider.reactive.doubleValues
+            .map { ZoomSpeed.snappedPercentage(for: $0) }
+            .skipRepeats()
+        zoomSpeed.producer.startWithValues { [weak self] value in
+            self?.zoomSpeedLabel.stringValue = String(format: "%.2fx", ZoomSpeed.multiplier(for: value))
+        }
 
         /// Trackpad Simulation app scope
         trackpadScope.bindingTarget <~ trackpadScopePicker.reactive.selectedIdentifiers.map({ identifier in

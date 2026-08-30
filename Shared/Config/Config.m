@@ -697,6 +697,21 @@ NSDictionary *_Nullable _readDictPlist(NSURL *url, bool mutable, NSError * __aut
                     }
 
                     currentVersion = 29;
+
+                } else if (currentVersion == 29) {
+
+                    /// 29 -> 30
+                    ///     Add a global zoom sensitivity that is independent
+                    ///     of the vertical and horizontal scroll settings.
+
+                    log(Info, "Upgrading configVersion from 29 to 30...");
+
+                    if (![config(@"Scroll.zoomSpeed") isKindOfClass:NSNumber.class]) {
+                        NSNumber *defaultZoomSpeed = [defaultConfig objectForCoolKeyPath:@"Scroll.zoomSpeed"];
+                        setConfig(@"Scroll.zoomSpeed", defaultZoomSpeed ?: @100);
+                    }
+
+                    currentVersion = 30;
                     
                 } else {
                     

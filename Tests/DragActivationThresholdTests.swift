@@ -26,8 +26,8 @@ struct DragActivationThresholdTests {
         }
         check((general["dragActivationThreshold"] as? NSNumber)?.intValue == 7,
               "default config preserves the legacy threshold")
-        check((constants["configVersion"] as? NSNumber)?.intValue == 29,
-              "default config uses the drag-threshold migration version")
+        check((constants["configVersion"] as? NSNumber)?.intValue == 30,
+              "default config includes the zoom-speed migration")
 
         if failures == 0 { NSLog("DragActivationThresholdTests passed") }
         exit(failures == 0 ? EXIT_SUCCESS : EXIT_FAILURE)

@@ -77,6 +77,12 @@ jobs:
             -o "$RUNNER_TEMP/license-persistence-policy-tests"
           "$RUNNER_TEMP/license-persistence-policy-tests"
 
+          xcrun swiftc \
+            Shared/Config/ZoomSpeed.swift \
+            Tests/ZoomSpeedTests.swift \
+            -o "$RUNNER_TEMP/zoom-speed-tests"
+          "$RUNNER_TEMP/zoom-speed-tests"
+
           xcrun clang \
             -I Helper/Core/Drag/Action \
             -Werror \

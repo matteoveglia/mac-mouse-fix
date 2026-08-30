@@ -1298,7 +1298,7 @@ static void sendOutputEvents(int64_t dx, int64_t dy, MFScrollOutputType outputTy
         
         /// --- Zoom ---
         
-        double eventDelta = (dx + dy)/800.0; /// This works because, if dx != 0 -> dy == 0, and the other way around.
+        double eventDelta = ((dx + dy)/800.0) * config.zoomSpeedMultiplier; /// This works because, if dx != 0 -> dy == 0, and the other way around.
         
         /// HACK:
         ///     Chromium browsers need a ton of zooming deltas before they actually start zooming. So we send a bunch of deltas right away to make things more responsive.

@@ -116,7 +116,10 @@ import Cocoa
                 /// Override animation curve
                 animationCurveOverride = kMFScrollAnimationCurveNameTouchDriver
                 
-                /// Adjust speed params
+                /// Zoom has its own sensitivity control. Use a fixed baseline
+                /// here so changing ordinary vertical or horizontal speed does
+                /// not also change zoom speed.
+                u_speed = kMFScrollSpeedMedium
                 scaleToDisplay = false
                 
             } else if modifiers.effectMod == kMFScrollEffectModificationRotate {
@@ -596,6 +599,10 @@ import Cocoa
         case "high":    return kMFScrollSpeedHigh
         default: fatalError()
         }
+    }()
+    @objc lazy var zoomSpeedMultiplier: Double = {
+        let percentage = (c("zoomSpeed") as? NSNumber)?.intValue ?? ZoomSpeed.defaultPercentage
+        return ZoomSpeed.multiplier(for: percentage)
     }()
     @objc lazy var u_precise: Bool = { c("precise") as! Bool }()
 

@@ -46,6 +46,8 @@
 		<string>high</string>
 		<key>horizontalSpeed</key>
 		<string>medium</string>
+		<key>zoomSpeed</key>
+		<integer>100</integer>
 	</dict>
 	<key>License</key>
 	<dict>
@@ -100,7 +102,7 @@
 	<key>Constants</key>
 	<dict>
 		<key>configVersion</key>
-		<integer>29</integer>
+		<integer>30</integer>
 		<key>defaultRemaps</key>
 		<dict>
 			<key>threeButtons</key>

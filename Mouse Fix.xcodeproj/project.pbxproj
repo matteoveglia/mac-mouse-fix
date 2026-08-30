@@ -252,6 +252,8 @@
 		4FB8B2992CCEBADA00A5A580 /* GetLicenseState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FB8B2972CCEBAD300A5A580 /* GetLicenseState.swift */; };
 		C0D309020000000000000002 /* LicensePersistencePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0D309010000000000000001 /* LicensePersistencePolicy.swift */; };
 		C0D309030000000000000003 /* LicensePersistencePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0D309010000000000000001 /* LicensePersistencePolicy.swift */; };
+		C0D310020000000000000002 /* ZoomSpeed.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0D310010000000000000001 /* ZoomSpeed.swift */; };
+		C0D310030000000000000003 /* ZoomSpeed.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0D310010000000000000001 /* ZoomSpeed.swift */; };
 		4FB8B29B2CCEBAEB00A5A580 /* GetLicenseConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FB8B29A2CCEBAE100A5A580 /* GetLicenseConfig.swift */; };
 		4FB8B29C2CCEBAEB00A5A580 /* GetLicenseConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FB8B29A2CCEBAE100A5A580 /* GetLicenseConfig.swift */; };
 		4FB8B29E2CCEBB1700A5A580 /* GetTrialState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FB8B29D2CCEBB1000A5A580 /* GetTrialState.swift */; };
@@ -2329,6 +2331,7 @@
 		4FB8B2942CCDB94F00A5A580 /* MFPlistDecoder.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = MFPlistDecoder.m; sourceTree = "<group>"; };
 		4FB8B2972CCEBAD300A5A580 /* GetLicenseState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GetLicenseState.swift; sourceTree = "<group>"; };
 		C0D309010000000000000001 /* LicensePersistencePolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LicensePersistencePolicy.swift; sourceTree = "<group>"; };
+		C0D310010000000000000001 /* ZoomSpeed.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZoomSpeed.swift; sourceTree = "<group>"; };
 		4FB8B29A2CCEBAE100A5A580 /* GetLicenseConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GetLicenseConfig.swift; sourceTree = "<group>"; };
 		4FB8B29D2CCEBB1000A5A580 /* GetTrialState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GetTrialState.swift; sourceTree = "<group>"; };
 		4FB8B2A12CCEBC4900A5A580 /* APIRequests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIRequests.swift; sourceTree = "<group>"; };
@@ -6775,6 +6778,7 @@
 			children = (
 				C0D300010000000000000001 /* ApplicationPolicy.swift */,
 				C0D306000000000000000001 /* DragActivationThreshold.swift */,
+				C0D310010000000000000001 /* ZoomSpeed.swift */,
 				4F9E59962672A67E004E75F7 /* default_config.plist */,
 				4F19F65E2906BB98007DE4CD /* ConfigReadme.md */,
 				4FF6660D25F2C93A00689B77 /* Config.h */,
@@ -8429,6 +8433,7 @@
 			files = (
 				C0D301010000000000000001 /* ApplicationPolicy.swift in Sources */,
 				C0D306010000000000000001 /* DragActivationThreshold.swift in Sources */,
+				C0D310020000000000000002 /* ZoomSpeed.swift in Sources */,
 				4F909D2828A0C3D2009349A2 /* ResizingTabWindow.swift in Sources */,
 				4FA40CF728A0CCCA00499E53 /* Curve.swift in Sources */,
 				4F1B41A52D4BACBA00026C94 /* NSData+Additions.m in Sources */,
@@ -8609,6 +8614,7 @@
 			files = (
 				C0D301020000000000000001 /* ApplicationPolicy.swift in Sources */,
 				C0D306020000000000000001 /* DragActivationThreshold.swift in Sources */,
+				C0D310030000000000000003 /* ZoomSpeed.swift in Sources */,
 				C0D301030000000000000001 /* MFHIDPPTypes.m in Sources */,
 				C0D301040000000000000001 /* MFHIDPPClient.m in Sources */,
 				4FB8B29F2CCEBB1700A5A580 /* GetTrialState.swift in Sources */,

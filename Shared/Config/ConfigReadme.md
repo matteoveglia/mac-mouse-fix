@@ -9,6 +9,11 @@
 
 Here, we document, what exactly changed as we increased the configVersion
 
+**29 -> 30**
+
+- Added `Scroll.zoomSpeed`, a global 50–200 percent zoom-sensitivity setting.
+- Zoom uses a fixed medium scroll baseline, so the ordinary vertical and horizontal speed settings no longer change zoom sensitivity.
+
 **26 -> 27**
 
 - Existing canonical policies containing executable, wrapper, or process-name selectors now open in the explicit `advanced` Trackpad Simulation scope.

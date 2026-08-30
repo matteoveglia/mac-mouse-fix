@@ -1652,7 +1652,42 @@ your mouse. (**Logitech M720 Triathlon**)&gt;</string>
                                             </popUpButton>
                                         </subviews>
                                     </stackView>
-                                    <stackView distribution="fill" orientation="vertical" alignment="leading" horizontalStackHuggingPriority="249.99998474121094" verticalStackHuggingPriority="249.99998474121094" detachesHiddenViews="YES" translatesAutoresizingMaskIntoConstraints="NO" id="WGO-Zc-NYH" userLabel="Precise Section">
+                                    <stackView distribution="fill" orientation="horizontal" alignment="centerY" spacing="10" horizontalStackHuggingPriority="1000" verticalStackHuggingPriority="750" horizontalHuggingPriority="1000" detachesHiddenViews="YES" translatesAutoresizingMaskIntoConstraints="NO" id="ScW-Zoom-Speed-Row-001" userLabel="Zoom Speed Row">
+                                        <rect key="frame" x="0.0" y="149" width="320" height="24"/>
+                                        <subviews>
+                                            <textField focusRingType="none" horizontalHuggingPriority="1000" verticalHuggingPriority="1000" horizontalCompressionResistancePriority="1000" verticalCompressionResistancePriority="1000" translatesAutoresizingMaskIntoConstraints="NO" id="ScW-Zoom-Speed-Label-001">
+                                                <rect key="frame" x="0.0" y="4" width="70" height="16"/>
+                                                <constraints>
+                                                    <constraint firstAttribute="width" constant="70" id="ScW-Zoom-Speed-Label-Width"/>
+                                                </constraints>
+                                                <textFieldCell key="cell" lineBreakMode="clipping" title="Zoom" id="ScW-Zoom-Speed-Label-Cell-001">
+                                                    <font key="font" usesAppearanceFont="YES"/>
+                                                    <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog"/>
+                                                    <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
+                                                </textFieldCell>
+                                            </textField>
+                                            <slider verticalHuggingPriority="750" translatesAutoresizingMaskIntoConstraints="NO" id="ScW-Zoom-Speed-Slider-001">
+                                                <rect key="frame" x="80" y="0.0" width="180" height="24"/>
+                                                <constraints>
+                                                    <constraint firstAttribute="width" constant="180" id="ScW-Zoom-Speed-Slider-Width"/>
+                                                </constraints>
+                                                <sliderCell key="cell" continuous="YES" state="on" minValue="50" maxValue="200" doubleValue="100" tickMarkPosition="below" numberOfTickMarks="16" sliderType="linear" id="ScW-Zoom-Speed-Slider-Cell-001"/>
+                                                <accessibility identifier="axScrollingZoomSpeedSlider"/>
+                                            </slider>
+                                            <textField focusRingType="none" horizontalHuggingPriority="1000" verticalHuggingPriority="1000" horizontalCompressionResistancePriority="1000" verticalCompressionResistancePriority="1000" translatesAutoresizingMaskInto="NO" id="ScW-Zoom-Speed-Value-001">
+                                                <rect key="frame" x="270" y="4" width="50" height="16"/>
+                                                <constraints>
+                                                    <constraint firstAttribute="width" constant="50" id="ScW-Zoom-Speed-Value-Width"/>
+                                                </constraints>
+                                                <textFieldCell key="cell" lineBreakMode="clipping" alignment="right" title="1.00x" id="ScW-Zoom-Speed-Value-Cell-001">
+                                                    <font key="font" usesAppearanceFont="YES"/>
+                                                    <color key="textColor" name="secondaryLabelColor" catalog="System" colorSpace="catalog"/>
+                                                    <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
+                                                </textFieldCell>
+                                            </textField>
+                                        </subviews>
+                                    </stackView>
+                                    <stackView distribution="fill" orientation="vertical" alignment="leading" horizontalStackHuggingPriority="249.99998474121094" verticalStackHuggingPriority="249.99998474121094" detachesHiddenViews="YES" translatesAutoresizingMaskInto="NO" id="WGO-Zc-NYH" userLabel="Precise Section">
                                         <rect key="frame" x="0.0" y="203" width="350" height="46"/>
                                         <subviews>
                                             <customView verticalHuggingPriority="1000" translatesAutoresizingMaskIntoConstraints="NO" id="8JP-6I-CYk" userLabel="Spacer">
@@ -2050,6 +2085,8 @@ your mouse. (**Logitech M720 Triathlon**)&gt;</string>
                         <outlet property="trackpadScopeStack" destination="ScW-Trackpad-Scope-Stack-001" id="ScW-Trackpad-Scope-Stack-Outlet"/>
                         <outlet property="trackpadScopePicker" destination="ScW-Trackpad-Scope-Picker-001" id="ScW-Trackpad-Scope-Outlet"/>
                         <outlet property="trackpadToggle" destination="BaB-SW-lek" id="TyK-xD-IEc"/>
+                        <outlet property="zoomSpeedLabel" destination="ScW-Zoom-Speed-Value-001" id="ScW-Zoom-Speed-Label-Outlet"/>
+                        <outlet property="zoomSpeedSlider" destination="ScW-Zoom-Speed-Slider-001" id="ScW-Zoom-Speed-Slider-Outlet"/>
                         <outlet property="zoomModField" destination="HZF-jc-NcN" id="Cbj-dq-4Sv"/>
                     </connections>
                 </viewController>
